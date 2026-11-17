@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "NewKarterz - jeu de karts",
+	"Modules": [
+		{ "Name": "NewKarterz", "Type": "Runtime", "LoadingPhase": "Default", "AdditionalDependencies": [ "Engine" ] }
+	],
+	"Plugins": [
+		{ "Name": "ProceduralMeshComponent", "Enabled": true },
+		{ "Name": "PythonScriptPlugin", "Enabled": true },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true },
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "ModelingToolsEditorMode", "Enabled": false }
+	]
+}

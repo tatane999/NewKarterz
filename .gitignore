@@ -1,0 +1,13 @@
+# Unreal Engine
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+NKAssets.uproject
+# Les assets binaires (Content/NK, Content/Maps) restent sur le PC (dépôt Git local + LFS) :
+# GitHub ne contient que le code, les scripts et les données texte.
+Content/NK/
+Content/Maps/
