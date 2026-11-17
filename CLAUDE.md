@@ -72,3 +72,19 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Caméra de menu `MenuCam` en orbite ; choix du pilote = `Player->SetModel` en direct ; `StartRace()` échange le
   modèle avec l'adversaire qui avait le même pilote.
 - Test : `-nkmenu` → captures `nk_menu_0_titre … 5_resultats.png` puis quitte (ne pas combiner avec -nkauto).
+
+## Refonte graphique v2 (17/11)
+- ⚠ Piège majeur : les matériaux importés (Interchange glTF) héritaient de parents du plugin sans l'usage
+  « Instanced Static Meshes » → en jeu, matériau par défaut (décor gris/noir). `Scripts/fix_usage.py` copie les parents
+  dans `/Game/NK/Mat/Gltf` avec les usages (ISM, Nanite) et rebranche toutes les instances (1749). À relancer après
+  tout nouvel import ; vérifier `Saved/Logs/NewKarterz.log` (« missing usage flag »).
+- Matériaux « Sheen » (fourrure des personnages) rendus noirs → `Scripts/fix_sheen.py` les rebranche sur MI_Default_Opaque.
+- Couleurs par instance du décor : `Tools/texpcol.js` (puppeteer sur la version web, `test/build.sh`) → `NKData/tN_col.json`
+  (alignées sur tN_inst.json). `M_DecorInst` = Base × couleur de sommet × PerInstanceCustomData(0..2) × aléa ;
+  appliqué aux groupes sans texture (`Material_N`). Petites touffes teintées selon le biome dans `BuildDecor`.
+- `M_Terrain2` (`Scripts/graphics_v2.py`) : chaque couche échantillonnée à 2 échelles selon la distance (anti-répétition),
+  zones de mélange larges, variation macro ; les MI_Terrain_* y sont rebranchées.
+- Éclairage : Lumen qualité 2, fuite de ciel 0,22, soleil doux (angle 1,2°), étalonnage (contraste, saturation, gain chaud),
+  AO, netteté `r.Tonemapper.Sharpen=0.8`.
+- Restes : palmiers/sapins web encore low-poly à certains endroits, corps de certains persos très sombres (couleurs
+  d'origine ?), pas encore d'herbe dense ni de vent.

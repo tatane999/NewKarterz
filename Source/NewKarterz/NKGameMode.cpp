@@ -59,6 +59,7 @@ void ANKGameMode::SpawnEnvironment()
 	// soleil
 	ADirectionalLight* Sun = W->SpawnActor<ADirectionalLight>(FVector(0,0,10000), D==TEXT("rock")?FRotator(-22,160,0):D==TEXT("snow")?FRotator(-28,145,0):FRotator(-42,150,0), P);
 	if (Sun){ UDirectionalLightComponent* L = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()); L->SetMobility(EComponentMobility::Movable); L->SetIntensity(D==TEXT("rock")?6.f:10.f); L->SetAtmosphereSunLight(true); L->SetDynamicShadowDistanceMovableLight(25000.f);
+			L->LightSourceAngle = 1.2f; L->bEnableLightShaftBloom = true; L->BloomScale = 0.12f; L->BloomThreshold = 4.f; L->SetBloomTint(FColor(255,220,170));
 		L->SetLightColor(D==TEXT("rock")?FLinearColor(1.f,0.62f,0.45f):FLinearColor(1.f,0.96f,0.9f)); }
 	// atmosphère, ciel, nuages, brouillard
 	AActor* Sky = W->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, P);
@@ -71,7 +72,7 @@ void ANKGameMode::SpawnEnvironment()
 	if (Fog){ UExponentialHeightFogComponent* F = Fog->GetComponent(); F->SetFogDensity(D==TEXT("snow")?0.035f:D==TEXT("rock")?0.05f:0.012f); F->SetFogHeightFalloff(0.08f); F->SetVolumetricFog(true);
 		F->SetVolumetricFogScatteringDistribution(0.6f); if (D==TEXT("rock")) F->SetFogInscatteringColor(FLinearColor(0.35f,0.08f,0.03f)); }
 	ASkyLight* SL = W->SpawnActor<ASkyLight>(FVector::ZeroVector, FRotator::ZeroRotator, P);
-	if (SL){ USkyLightComponent* C = SL->GetLightComponent(); C->SetMobility(EComponentMobility::Movable); C->bRealTimeCapture = true; C->SetIntensity(1.6f); C->RecaptureSky(); }
+	if (SL){ USkyLightComponent* C = SL->GetLightComponent(); C->SetMobility(EComponentMobility::Movable); C->bRealTimeCapture = true; C->SetIntensity(2.1f); C->RecaptureSky(); }
 	APostProcessVolume* PPV = W->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator, P);
 	if (PPV){ PPV->bUnbound = true; FPostProcessSettings& S = PPV->Settings;
 		S.bOverride_BloomIntensity=true; S.BloomIntensity=0.55f;
@@ -79,7 +80,25 @@ void ANKGameMode::SpawnEnvironment()
 		S.bOverride_ColorSaturation=true; S.ColorSaturation=FVector4(1.12f,1.12f,1.12f,1.f);
 		S.bOverride_VignetteIntensity=true; S.VignetteIntensity=0.3f;
 		S.bOverride_DynamicGlobalIlluminationMethod=true; S.DynamicGlobalIlluminationMethod=EDynamicGlobalIlluminationMethod::Lumen;
-		S.bOverride_ReflectionMethod=true; S.ReflectionMethod=EReflectionMethod::Lumen; }
+		S.bOverride_ReflectionMethod=true; S.ReflectionMethod=EReflectionMethod::Lumen;
+		// qualité Lumen + lumière du ciel dans les ombres (look « dessin animé » moins sombre)
+		S.bOverride_LumenSceneLightingQuality=true; S.LumenSceneLightingQuality=2.f;
+		S.bOverride_LumenFinalGatherQuality=true; S.LumenFinalGatherQuality=2.f;
+		S.bOverride_LumenReflectionQuality=true; S.LumenReflectionQuality=2.f;
+		S.bOverride_LumenSkylightLeaking=true; S.LumenSkylightLeaking=0.22f;
+		S.bOverride_LumenSceneDetail=true; S.LumenSceneDetail=2.f;
+		// étalonnage
+		S.bOverride_AutoExposureBias=true; S.AutoExposureBias=0.25f;
+		S.bOverride_ColorContrast=true; S.ColorContrast=FVector4(1.08f,1.08f,1.08f,1.f);
+		S.bOverride_ColorSaturation=true; S.ColorSaturation=FVector4(1.16f,1.14f,1.1f,1.f);
+		S.bOverride_ColorGain=true; S.ColorGain=D==TEXT("snow")?FVector4(0.97f,1.f,1.05f,1.f):FVector4(1.04f,1.f,0.95f,1.f);
+		S.bOverride_ColorGammaShadows=true; S.ColorGammaShadows=FVector4(1.03f,1.03f,1.08f,1.f);
+		S.bOverride_FilmSlope=true; S.FilmSlope=0.86f; S.bOverride_FilmToe=true; S.FilmToe=0.52f;
+		S.bOverride_SceneFringeIntensity=true; S.SceneFringeIntensity=0.12f;
+		S.bOverride_AmbientOcclusionIntensity=true; S.AmbientOcclusionIntensity=0.65f;
+		S.bOverride_BloomThreshold=true; S.BloomThreshold=-1.f;
+		S.bOverride_LensFlareIntensity=true; S.LensFlareIntensity=0.15f;
+		S.bOverride_VignetteIntensity=true; S.VignetteIntensity=0.35f; }
 }
 
 void ANKGameMode::BeginPlay()

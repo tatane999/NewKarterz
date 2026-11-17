@@ -253,6 +253,9 @@ void ANKTrack::BuildDecor(int32 Index)
 	TArray<TSharedPtr<FJsonValue>> Arr; TSharedRef<TJsonReader<>> Rd = TJsonReaderFactory<>::Create(Json); if (!FJsonSerializer::Deserialize(Rd, Arr)) return;
 	// remplacements par des modèles photoscannés (Poly Haven, CC0) : NKData/tN_repl.json = {"i1":{"mesh":"ph_fir","k":0.75}}
 	TSharedPtr<FJsonObject> Repl; { FString RJ; if (FFileHelper::LoadFileToString(RJ, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_repl.json"), Index)))) { TSharedRef<TJsonReader<>> R2 = TJsonReaderFactory<>::Create(RJ); FJsonSerializer::Deserialize(R2, Repl); } }
+	// couleurs par instance (exportées de la version web) : NKData/tN_col.json = {"i3":{"base":[r,g,b],"C":[r,g,b,...]}}
+	TSharedPtr<FJsonObject> Col; { FString CJ; if (FFileHelper::LoadFileToString(CJ, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_col.json"), Index)))) { TSharedRef<TJsonReader<>> R3 = TJsonReaderFactory<>::Create(CJ); FJsonSerializer::Deserialize(R3, Col); } }
+	UMaterialInterface* DecorMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/NK/Mat/M_DecorInst.M_DecorInst"));
 	int32 Total=0;
 	for (const TSharedPtr<FJsonValue>& V : Arr)
 	{
@@ -265,7 +268,29 @@ void ANKTrack::BuildDecor(int32 Index)
 		UHierarchicalInstancedStaticMeshComponent* HC = NewObject<UHierarchicalInstancedStaticMeshComponent>(this); HC->SetStaticMesh(SM); HC->SetupAttachment(RootComponent);
 		HC->SetCollisionEnabled(ECollisionEnabled::NoCollision); HC->SetCullDistances(0, 60000); HC->RegisterComponent();
 		TArray<FTransform> Xf; for (const TSharedPtr<FJsonValue>& M : O->GetArrayField(TEXT("M"))) { FTransform T = JSMatrixToUE(M->AsArray()); if (K!=1.f) T.SetScale3D(T.GetScale3D()*K); Xf.Add(T); }
-		HC->AddInstances(Xf, false, true); Total += Xf.Num(); DecorComps.Add(HC);
+		// matériau à couleur par instance pour les modèles sans texture (Material_N)
+		const bool bPlain = K==1.f && SM->GetStaticMaterials().Num()>0 && SM->GetStaticMaterials()[0].MaterialSlotName.ToString().StartsWith(TEXT("Material_"));
+		const TSharedPtr<FJsonObject>* CE = nullptr;
+		if (bPlain && DecorMat && Col.IsValid() && Col->TryGetObjectField(Id, CE))
+		{
+			UMaterialInstanceDynamic* MD = UMaterialInstanceDynamic::Create(DecorMat, HC);
+			const TArray<TSharedPtr<FJsonValue>>& Bc = (*CE)->GetArrayField(TEXT("base"));
+			FLinearColor Base = Bc.Num()>=3 ? FLinearColor(Bc[0]->AsNumber(), Bc[1]->AsNumber(), Bc[2]->AsNumber()) : FLinearColor::White;
+			// petites touffes d'herbe (quelques triangles, basses) : teinte selon le biome
+			if (SM->GetNumTriangles(0) <= 12 && SM->GetBounds().BoxExtent.Z < 80.f)
+				Base *= Deco==TEXT("palm") ? FLinearColor(0.75f,0.62f,0.32f) : Deco==TEXT("pine") ? FLinearColor(0.42f,0.62f,0.22f) : Deco==TEXT("snow") ? FLinearColor(0.85f,0.9f,0.95f) : FLinearColor(0.35f,0.28f,0.22f);
+			MD->SetVectorParameterValue(TEXT("Base"), Base);
+			for (int32 s=0; s<SM->GetStaticMaterials().Num(); s++) HC->SetMaterial(s, MD);
+			HC->NumCustomDataFloats = 3;
+			HC->AddInstances(Xf, false, true);
+			const TArray<TSharedPtr<FJsonValue>>* CA = nullptr;
+			if ((*CE)->TryGetArrayField(TEXT("C"), CA) && CA->Num() >= Xf.Num()*3)
+				for (int32 i=0;i<Xf.Num();i++) { TArray<float> D = { (float)(*CA)[i*3]->AsNumber(), (float)(*CA)[i*3+1]->AsNumber(), (float)(*CA)[i*3+2]->AsNumber() }; HC->SetCustomData(i, D, false); }
+			else for (int32 i=0;i<Xf.Num();i++) HC->SetCustomData(i, {1.f,1.f,1.f}, false);
+			HC->MarkRenderStateDirty();
+		}
+		else HC->AddInstances(Xf, false, true);
+		Total += Xf.Num(); DecorComps.Add(HC);
 	}
 	UE_LOG(LogNK, Log, TEXT("Décor : %d types, %d instances"), Arr.Num(), Total);
 }
