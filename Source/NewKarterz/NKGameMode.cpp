@@ -31,6 +31,21 @@
 
 static const TCHAR* GNames[] = { TEXT("Melannie"), TEXT("Rocco"), TEXT("Kouign"), TEXT("Noisette"), TEXT("Biscotte"), TEXT("Praline"), TEXT("Caramel"), TEXT("Galette"), TEXT("Crêpe"), TEXT("Sablé"), TEXT("Nougat"), TEXT("Chouquette") };
 
+const TCHAR* ANKGameMode::TrackNames[4] = { TEXT("Lagon Turquoise"), TEXT("Forêt des Lucioles"), TEXT("Volcan Grondant"), TEXT("Pic Givré") };
+
+static bool JustPressed(APlayerController* PC, std::initializer_list<FKey> Ks)
+{
+	if (!PC) return false;
+	for (const FKey& K : Ks) if (PC->WasInputKeyJustPressed(K)) return true;
+	return false;
+}
+#define K_CONFIRM {EKeys::Enter, EKeys::SpaceBar, EKeys::Gamepad_FaceButton_Bottom}
+#define K_BACK    {EKeys::Escape, EKeys::BackSpace, EKeys::Gamepad_FaceButton_Right}
+#define K_LEFT    {EKeys::Left, EKeys::Q, EKeys::A, EKeys::Gamepad_DPad_Left, EKeys::Gamepad_LeftStick_Left}
+#define K_RIGHT   {EKeys::Right, EKeys::D, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_LeftStick_Right}
+#define K_UP      {EKeys::Up, EKeys::Z, EKeys::W, EKeys::Gamepad_DPad_Up, EKeys::Gamepad_LeftStick_Up}
+#define K_DOWN    {EKeys::Down, EKeys::S, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_LeftStick_Down}
+
 ANKGameMode::ANKGameMode()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -78,7 +93,12 @@ void ANKGameMode::BeginPlay()
 	const int32 PlayerSlot = NumKarts-1;
 	TArray<FString> CN; { FString J; if (FFileHelper::LoadFileToString(J, *(FPaths::ProjectContentDir()/TEXT("NKData/chars.json")))) { TArray<TSharedPtr<FJsonValue>> A; TSharedRef<TJsonReader<>> R=TJsonReaderFactory<>::Create(J); if (FJsonSerializer::Deserialize(R,A)) for (auto& v:A) CN.Add(v->AsString()); } }
 	if (CN.Num()==0) for (const TCHAR* n : GNames) CN.Add(n);
-	int32 PlayerChar = CN.IndexOfByKey(TEXT("Melannie")); if (PlayerChar<0) PlayerChar=0;
+	CharNames = CN;
+	int32 PlayerChar = UGameplayStatics::GetIntOption(OptionsString, TEXT("char"), CN.IndexOfByKey(TEXT("Melannie")));
+	if (!CN.IsValidIndex(PlayerChar)) PlayerChar = 0;
+	CharSel = PlayerChar; TrackSel = TrackIndex;
+	int32 MenuStart = UGameplayStatics::GetIntOption(OptionsString, TEXT("menu"), 1);
+	if (FParse::Param(FCommandLine::Get(), TEXT("nkauto"))) MenuStart = 0;
 	TArray<int32> Pool; for (int32 i=0;i<CN.Num();i++) if (i!=PlayerChar) Pool.Add(i);
 	for (int32 i=Pool.Num()-1;i>0;i--) Pool.Swap(i, FMath::RandRange(0,i));
 	for (int32 s=0; s<NumKarts; s++)
@@ -86,10 +106,17 @@ void ANKGameMode::BeginPlay()
 		ANKKart* K = GetWorld()->SpawnActor<ANKKart>(ANKKart::StaticClass(), FTransform::Identity, P);
 		const int32 Ci = s==PlayerSlot ? PlayerChar : Pool[s % Pool.Num()];
 		K->Init(Track, s, s==PlayerSlot, Ci, CN[Ci]);
-		Karts.Add(K); if (s==PlayerSlot) Player = K;
+		Karts.Add(K); if (s==PlayerSlot) { Player = K; PlayerInitModel = Ci; }
 	}
 	Items = GetWorld()->SpawnActor<ANKItems>(ANKItems::StaticClass(), FTransform::Identity, P); if (Items) Items->Setup(Track);
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) { PC->Possess(Player); PC->SetViewTarget(Player); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly()); }
+	if (MenuStart > 0)
+	{
+		State = ENKState::Menu; MenuPage = MenuStart-1;
+		MenuCam = GetWorld()->SpawnActor<ACameraActor>(Player->GetActorLocation() + FVector(0,0,1500), FRotator(-30,0,0), P);
+		if (MenuCam) { MenuCam->GetCameraComponent()->SetFieldOfView(60.f); MenuCam->GetCameraComponent()->bConstrainAspectRatio = false;
+			if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) PC->SetViewTarget(MenuCam); }
+	}
 }
 
 void ANKGameMode::Ranks()
@@ -99,9 +126,57 @@ void ANKGameMode::Ranks()
 	for (int32 i=0;i<A.Num();i++) A[i]->Rank=i;
 }
 
-void ANKGameMode::Restart(int32 NewTrack)
+void ANKGameMode::Restart(int32 NewTrack, int32 InMenuPage)
 {
-	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetMapName().Replace(*GetWorld()->StreamingLevelsPrefix, TEXT(""))), true, FString::Printf(TEXT("track=%d"), NewTrack));
+	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetMapName().Replace(*GetWorld()->StreamingLevelsPrefix, TEXT(""))), true,
+		FString::Printf(TEXT("track=%d?char=%d?menu=%d"), NewTrack, CharSel, InMenuPage));
+}
+
+void ANKGameMode::StartRace()
+{
+	// un adversaire qui aurait le même personnage reprend l'ancien modèle du joueur
+	const int32 Old = PlayerInitModel;
+	if (Old != CharSel) for (ANKKart* K : Karts) if (K != Player && K->Model == CharSel) { K->SetModel(Old); if (CharNames.IsValidIndex(Old)) K->Name = CharNames[Old]; }
+	Player->SetModel(CharSel); if (CharNames.IsValidIndex(CharSel)) Player->Name = CharNames[CharSel];
+	State = ENKState::Countdown; Cd = 3.9f;
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) PC->SetViewTargetWithBlend(Player, 1.2f, VTBlend_EaseInOut, 2.f);
+}
+
+void ANKGameMode::TickMenu(float Dt, APlayerController* PC)
+{
+	MenuT += Dt;
+	if (MenuPage == 0)
+	{
+		if (JustPressed(PC, K_CONFIRM)) MenuPage = 1;
+		else if (JustPressed(PC, K_BACK)) { if (PC) PC->ConsoleCommand(TEXT("quit")); }
+	}
+	else if (MenuPage == 1)
+	{
+		const int32 Nc = FMath::Max(1, CharNames.Num());
+		if (JustPressed(PC, K_LEFT))  { CharSel = (CharSel + Nc - 1) % Nc; Player->SetModel(CharSel); }
+		if (JustPressed(PC, K_RIGHT)) { CharSel = (CharSel + 1) % Nc; Player->SetModel(CharSel); }
+		if (JustPressed(PC, K_CONFIRM)) MenuPage = 2;
+		else if (JustPressed(PC, K_BACK)) MenuPage = 0;
+	}
+	else
+	{
+		if (JustPressed(PC, K_UP))   TrackSel = (TrackSel + 3) % 4;
+		if (JustPressed(PC, K_DOWN)) TrackSel = (TrackSel + 1) % 4;
+		if (JustPressed(PC, K_CONFIRM)) { if (TrackSel == TrackIndex) StartRace(); else Restart(TrackSel, 0); return; }
+		else if (JustPressed(PC, K_BACK)) MenuPage = 1;
+	}
+	// caméra du menu : survol large (titre), gros plan qui tourne autour du kart (perso), vue haute (circuit)
+	if (MenuCam && Player)
+	{
+		const FVector C = Player->GetActorLocation() + FVector(0,0,90);
+		const float R = MenuPage==1 ? 820.f : MenuPage==0 ? 2600.f : 5200.f;
+		const float Hh = MenuPage==1 ? 260.f : MenuPage==0 ? 900.f : 3200.f;
+		const float A = MenuT * (MenuPage==1 ? 0.45f : 0.12f) + (MenuPage==1 ? 2.2f : 0.f);
+		const FVector Want = C + FVector(FMath::Cos(A)*R, FMath::Sin(A)*R, Hh);
+		const FVector Pos = FMath::VInterpTo(MenuCam->GetActorLocation(), Want, Dt, 2.5f);
+		const FVector Look = MenuPage==1 ? C + FVector(0,0,20) : C;
+		MenuCam->SetActorLocation(Pos); MenuCam->SetActorRotation((Look - Pos).Rotation());
+	}
 }
 
 void ANKGameMode::Tick(float Dt)
@@ -110,15 +185,58 @@ void ANKGameMode::Tick(float Dt)
 	if (!Track || !Player) return;
 	Dt = FMath::Min(Dt, 1.f/30.f);
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC)
-	{
-		const bool bN = PC->IsInputKeyDown(EKeys::N) || (PC->IsInputKeyDown(EKeys::Gamepad_Special_Right) && State==ENKState::Finished);
-		const bool bR = PC->IsInputKeyDown(EKeys::Enter) || (PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Bottom) && State==ENKState::Finished);
-		if (bN && !bPrevNext) Restart((TrackIndex+1)%4);
-		if (bR && !bPrevRestart && State==ENKState::Finished) Restart(TrackIndex);
-		bPrevNext=bN; bPrevRestart=bR;
-		if (PC->IsInputKeyDown(EKeys::Escape)) { PC->ConsoleCommand(TEXT("quit")); }
+	{ // test des menus : -nkmenu (captures nk_menu_*.png puis quitte)
+		static bool bMenuTest = FParse::Param(FCommandLine::Get(), TEXT("nkmenu")); static float T=0; static int32 St=0;
+		if (bMenuTest)
+		{
+			T += Dt;
+			auto Shot = [&](const TCHAR* N){ FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("nk_menu_%s.png"), N), false, false); St++; };
+			if (St==0 && T>2.f) Shot(TEXT("0_titre"));
+			else if (St==1 && T>2.5f) { MenuPage = 1; St++; }
+			else if (St==2 && T>5.f) Shot(TEXT("1_perso"));
+			else if (St==3 && T>5.5f) { CharSel = (CharSel+3) % FMath::Max(1,CharNames.Num()); Player->SetModel(CharSel); St++; }
+			else if (St==4 && T>8.f) Shot(TEXT("2_perso"));
+			else if (St==5 && T>8.5f) { MenuPage = 2; TrackSel = TrackIndex; St++; }
+			else if (St==6 && T>11.f) Shot(TEXT("3_circuit"));
+			else if (St==7 && T>11.5f) { StartRace(); St++; }
+			else if (St==8 && T>20.f) { bPaused = true; PauseSel = 1; St++; }
+			else if (St==9 && T>21.f) Shot(TEXT("4_pause"));
+			else if (St==10 && T>21.5f) { bPaused = false; for (ANKKart* K : Karts) if (K->Rank < 6) { K->bFinished = true; K->FinishTime = RaceTime + K->Rank*1.7f; } Player->bFinished = true; Player->FinishTime = RaceTime + 9.f; St++; }
+			else if (St==11 && T>24.f) Shot(TEXT("5_resultats"));
+			else if (St==12 && T>25.5f) { if (PC) PC->ConsoleCommand(TEXT("quit")); St++; }
+		}
 	}
+	if (State==ENKState::Menu)
+	{
+		TickMenu(Dt, PC);
+		if (State==ENKState::Menu) { for (ANKKart* K : Karts) K->Simulate(Dt, FNKInput()); if (Items) Items->Update(Dt, Karts); }
+		return;
+	}
+	if (bPaused)
+	{
+		if (JustPressed(PC, K_UP)) PauseSel = (PauseSel + 4) % 5;
+		if (JustPressed(PC, K_DOWN)) PauseSel = (PauseSel + 1) % 5;
+		if (JustPressed(PC, {EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right, EKeys::Gamepad_FaceButton_Right})) bPaused = false;
+		else if (JustPressed(PC, K_CONFIRM))
+		{
+			switch (PauseSel)
+			{
+			case 0: bPaused = false; break;
+			case 1: Restart(TrackIndex, 0); break;
+			case 2: Restart(TrackIndex, 3); break;
+			case 3: Restart(TrackIndex, 1); break;
+			default: if (PC) PC->ConsoleCommand(TEXT("quit")); break;
+			}
+		}
+		return;
+	}
+	if (State==ENKState::Finished)
+	{
+		if (JustPressed(PC, K_CONFIRM)) { Restart(TrackIndex, 0); return; }
+		if (JustPressed(PC, {EKeys::N, EKeys::Gamepad_Special_Right})) { Restart((TrackIndex+1)%4, 0); return; }
+		if (JustPressed(PC, {EKeys::Escape, EKeys::Gamepad_FaceButton_Right})) { Restart(TrackIndex, 3); return; }
+	}
+	else if (JustPressed(PC, {EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right})) { bPaused = true; PauseSel = 0; return; }
 	if (State==ENKState::Countdown)
 	{
 		Cd -= Dt; if (Cd<=0) State = ENKState::Race;
@@ -176,6 +294,60 @@ void ANKHUD::DrawHUD()
 	{
 		float w,h; Canvas->StrLen(Big, T, w, h); w*=S; FCanvasTextItem I(FVector2D(bCenter?X-w/2:X, Y), FText::FromString(T), Big, C); I.Scale = FVector2D(S,S); I.EnableShadow(FLinearColor(0,0,0,0.7f)); Canvas->DrawItem(I);
 	};
+	auto Box = [&](float X, float Y, float W, float H, FLinearColor C)
+	{
+		FCanvasTileItem T(FVector2D(X,Y), FVector2D(W,H), C); T.BlendMode = SE_BLEND_Translucent; Canvas->DrawItem(T);
+	};
+	const FLinearColor Gold(1,0.82f,0.35f), Dim(1,1,1,0.55f);
+	auto Hint = [&](const FString& T){ Box(0, Sy-46*Sc, Sx, 46*Sc, FLinearColor(0,0,0,0.5f)); Txt(T, Sx/2, Sy-38*Sc, 0.85f*Sc, FLinearColor(1,1,1,0.85f), true); };
+
+	// ---------- menus ----------
+	if (GM->State == ENKState::Menu)
+	{
+		const float Pulse = 0.6f + 0.4f*FMath::Sin(GM->MenuT*4.f);
+		if (GM->MenuPage == 0)
+		{
+			Box(0, Sy*0.18f, Sx, Sy*0.30f, FLinearColor(0,0,0,0.35f));
+			Txt(TEXT("NEWKARTERZ"), Sx/2+4*Sc, Sy*0.20f+4*Sc, 6.f*Sc, FLinearColor(0.9f,0.25f,0.1f,0.9f), true);
+			Txt(TEXT("NEWKARTERZ"), Sx/2, Sy*0.20f, 6.f*Sc, Gold, true);
+			Txt(TEXT("Course de karts"), Sx/2, Sy*0.20f + 110*Sc, 1.3f*Sc, FLinearColor::White, true);
+			Txt(TEXT("Appuie sur Entrée / A"), Sx/2, Sy*0.68f, 1.4f*Sc, FLinearColor(1,1,1,Pulse), true);
+			Hint(TEXT("Entrée / A : jouer    ·    Échap : quitter"));
+		}
+		else if (GM->MenuPage == 1)
+		{
+			const int32 Nc = FMath::Max(1, GM->CharNames.Num());
+			Txt(TEXT("CHOISIS TON PILOTE"), Sx/2, 40*Sc, 2.f*Sc, Gold, true);
+			const FString Nm = GM->CharNames.IsValidIndex(GM->CharSel) ? GM->CharNames[GM->CharSel] : TEXT("?");
+			Box(Sx/2-260*Sc, Sy*0.70f, 520*Sc, 90*Sc, FLinearColor(0,0,0,0.5f));
+			Txt(Nm, Sx/2, Sy*0.70f + 10*Sc, 2.6f*Sc, FLinearColor::White, true);
+			Txt(TEXT("<"), Sx/2-230*Sc, Sy*0.70f + 14*Sc, 2.4f*Sc, FLinearColor(1,1,1,Pulse), true);
+			Txt(TEXT(">"), Sx/2+230*Sc, Sy*0.70f + 14*Sc, 2.4f*Sc, FLinearColor(1,1,1,Pulse), true);
+			Txt(FString::Printf(TEXT("%d / %d"), GM->CharSel+1, Nc), Sx/2, Sy*0.70f + 96*Sc, 0.9f*Sc, Dim, true);
+			// voisins
+			for (int32 d : {-2,-1,1,2})
+			{
+				const int32 i = (GM->CharSel + d + Nc*4) % Nc; if (!GM->CharNames.IsValidIndex(i)) continue;
+				Txt(GM->CharNames[i], Sx/2 + d*(d==-1||d==1?400.f:620.f)*Sc, Sy*0.70f + 30*Sc, 1.0f*Sc, FLinearColor(1,1,1,d==-1||d==1?0.6f:0.3f), true);
+			}
+			Hint(TEXT("Q D / ← → / croix : changer    ·    Entrée / A : valider    ·    Échap / B : retour"));
+		}
+		else
+		{
+			Txt(TEXT("CHOISIS TON CIRCUIT"), Sx/2, 40*Sc, 2.f*Sc, Gold, true);
+			const float W = 560*Sc, X = Sx/2 - W/2, Y0 = Sy*0.30f, Hh = 74*Sc;
+			for (int32 i=0;i<4;i++)
+			{
+				const bool bSel = i == GM->TrackSel; const float Y = Y0 + i*(Hh+12*Sc);
+				Box(X, Y, W, Hh, bSel ? FLinearColor(1,0.6f,0.1f,0.75f) : FLinearColor(0,0,0,0.5f));
+				Txt(FString::Printf(TEXT("%d.  %s"), i+1, ANKGameMode::TrackNames[i]), X + 30*Sc, Y + 16*Sc, 1.6f*Sc, bSel ? FLinearColor::White : FLinearColor(1,1,1,0.75f));
+			}
+			Txt(FString::Printf(TEXT("Pilote : %s    ·    %d tours    ·    %d karts"), GM->CharNames.IsValidIndex(GM->CharSel)?*GM->CharNames[GM->CharSel]:TEXT("?"), GM->TotalLaps, GM->Karts.Num()), Sx/2, Y0 + 4*(Hh+12*Sc) + 16*Sc, 1.0f*Sc, Dim, true);
+			Hint(TEXT("Z S / ↑ ↓ : choisir    ·    Entrée / A : c'est parti !    ·    Échap / B : retour"));
+		}
+		return;
+	}
+
 	ANKKart* P = GM->Player; const int32 R = P->Rank+1;
 	Txt(FString::Printf(TEXT("%d%s"), R, R==1?TEXT("er"):TEXT("e")), 30*Sc, 20*Sc, 3.2f*Sc, FLinearColor(1,0.82f,0.4f));
 	Txt(FString::Printf(TEXT("/%d"), GM->Karts.Num()), 30*Sc+90*Sc, 52*Sc, 1.3f*Sc, FLinearColor::White);
@@ -204,8 +376,38 @@ void ANKHUD::DrawHUD()
 	if (GM->State==ENKState::Countdown){ const int32 n = FMath::CeilToInt(GM->Cd-0.9f); Txt(n>0?FString::FromInt(n):TEXT("PARTEZ !"), Sx/2, Sy*0.32f, 5.f*Sc, FLinearColor(1,0.85f,0.3f), true); }
 	if (GM->State==ENKState::Finished)
 	{
-		Txt(R==1?TEXT("VICTOIRE !"):FString::Printf(TEXT("ARRIVÉE : %d%s"), R, R==1?TEXT("er"):TEXT("e")), Sx/2, Sy*0.28f, 3.5f*Sc, FLinearColor(1,0.85f,0.3f), true);
-		Txt(TEXT("Entrée / A : rejouer    ·    N / Start : circuit suivant"), Sx/2, Sy*0.42f, 1.0f*Sc, FLinearColor::White, true);
+		// résultats : classement complet
+		const float W = 620*Sc, X = Sx/2 - W/2, Y0 = 110*Sc, Rh = 34*Sc;
+		Txt(R==1?TEXT("VICTOIRE !"):FString::Printf(TEXT("ARRIVÉE : %d%s"), R, TEXT("e")), Sx/2, 30*Sc, 2.6f*Sc, Gold, true);
+		TArray<ANKKart*> A; for (ANKKart* K : GM->Karts) A.Add(K); A.Sort([](const ANKKart& a, const ANKKart& b){ return a.Rank < b.Rank; });
+		Box(X-10*Sc, Y0-10*Sc, W+20*Sc, A.Num()*Rh+20*Sc, FLinearColor(0,0,0,0.55f));
+		for (int32 i=0;i<A.Num();i++)
+		{
+			ANKKart* K = A[i]; const float Y = Y0 + i*Rh; const bool bMe = K == P;
+			if (bMe) Box(X, Y, W, Rh-2*Sc, FLinearColor(1,0.6f,0.1f,0.6f));
+			const FLinearColor C = bMe ? FLinearColor::White : FLinearColor(1,1,1,0.85f);
+			Txt(FString::Printf(TEXT("%d"), i+1), X + 16*Sc, Y + 4*Sc, 1.05f*Sc, i<3 ? Gold : C);
+			Txt(K->Name, X + 80*Sc, Y + 4*Sc, 1.05f*Sc, C);
+			FString T;
+			if (K->bFinished) { const int32 Ms2 = (int32)(K->FinishTime*1000); T = FString::Printf(TEXT("%d:%02d.%02d"), Ms2/60000, (Ms2/1000)%60, (Ms2/10)%100); }
+			else T = FString::Printf(TEXT("tour %d/%d"), FMath::Clamp(K->Laps,1,GM->TotalLaps), GM->TotalLaps);
+			Txt(T, X + W - 170*Sc, Y + 4*Sc, 1.05f*Sc, K->bFinished ? C : Dim);
+		}
+		Hint(TEXT("Entrée / A : rejouer    ·    N / Start : circuit suivant    ·    Échap / B : changer de circuit"));
 	}
-	else Txt(TEXT("N : circuit suivant"), Sx-210*Sc, Sy-30*Sc, 0.7f*Sc, FLinearColor(1,1,1,0.6f));
+	else if (GM->bPaused)
+	{
+		Box(0, 0, Sx, Sy, FLinearColor(0,0,0,0.55f));
+		Txt(TEXT("PAUSE"), Sx/2, Sy*0.16f, 3.4f*Sc, Gold, true);
+		static const TCHAR* Opt[5] = { TEXT("Reprendre"), TEXT("Recommencer la course"), TEXT("Changer de circuit"), TEXT("Menu principal"), TEXT("Quitter le jeu") };
+		const float W = 460*Sc, X = Sx/2 - W/2, Y0 = Sy*0.34f, Hh = 58*Sc;
+		for (int32 i=0;i<5;i++)
+		{
+			const bool bSel = i == GM->PauseSel; const float Y = Y0 + i*(Hh+10*Sc);
+			Box(X, Y, W, Hh, bSel ? FLinearColor(1,0.6f,0.1f,0.8f) : FLinearColor(0,0,0,0.5f));
+			Txt(Opt[i], Sx/2, Y + 12*Sc, 1.35f*Sc, bSel ? FLinearColor::White : FLinearColor(1,1,1,0.75f), true);
+		}
+		Hint(TEXT("Z S / ↑ ↓ : choisir    ·    Entrée / A : valider    ·    Échap / Start : reprendre"));
+	}
+	else Txt(TEXT("Échap / Start : pause"), Sx-230*Sc, Sy-30*Sc, 0.7f*Sc, FLinearColor(1,1,1,0.6f));
 }

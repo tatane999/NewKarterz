@@ -22,6 +22,8 @@ public:
 	void Simulate(float Dt, const FNKInput& In);
 	FNKInput ComputeAI(float Dt);
 	void Respawn();
+	void SetModel(int32 KartModel);
+	int32 Model=0;
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Visual;

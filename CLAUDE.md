@@ -40,8 +40,9 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Textes de l'interface et messages à Antoine : en **français**.
 
 ## Pistes d'amélioration (par priorité)
-1. Menus (titre, choix perso/circuit, pause, résultats détaillés). Objets : faits (v1) — à enrichir : vrais modèles
-   (boîte « ? » translucide, carapaces, banane), sons, effets d'impact, IA qui évite les bananes.
+1. Menus et objets : faits (v1). À enrichir : vrais modèles d'objets (boîte « ? » translucide, carapaces, banane),
+   sons, effets d'impact, IA qui évite les bananes ; menus plus beaux (UMG/Slate, polices, vignettes des circuits),
+   options (nombre de tours, difficulté, nombre de karts), écran de chargement.
 2. Remplacer le décor low-poly par des modèles photoscannés CC0 (Poly Haven / ambientCG) en Nanite ; couleurs par instance.
 3. Personnages animés (squelettes Melannie/Rocco), roues qui tournent, effets Niagara (poussière, étincelles, turbo).
 4. Sons et musique (MetaSounds), commentateur.
@@ -61,6 +62,13 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Objets : banane, carapace verte (rebondit sur les bords), rouge (vise le kart devant), turbo, bouclier (8 s, 3 orbes).
   Tirage selon le classement (`Roll`). Kart : `Item`, `RollT` (roulette 1,1 s), `ShieldT`, `HitFlash`.
 - Joueur : E / Ctrl / LB / B. L'IA utilise ses objets après 0,8–3,5 s. `nkdbg.txt` journalise objets/touches/boîtes.
-- Caméra : collision ECC_Camera sur le décor fixe (`t%d_static`, complexe) ; route/terrain ignorent la caméra.
-  ⚠ la capture à 2 s (passage sous l'arche de départ) reste blanche : la collision complexe ne semble pas jouer — à revoir.
-- Le .exe empaqueté ignore `?track=N` sur la ligne de commande (démarre sur le circuit 0).
+- Caméra : pas de collision (une collision sur l'arche de départ plaquait la caméra dans le kart). Bras abaissé
+  (720 cm, décalage Z 215, tangage −8°) pour passer sous l'arche.
+- Le .exe empaqueté ignore `?track=N` sur la ligne de commande (démarre sur le circuit 0) — utiliser les menus.
+
+## Menus (NKGameMode, ANKHUD sur Canvas)
+- États : `Menu` (pages 0 titre, 1 pilote, 2 circuit) → `Countdown` → `Race` → `Finished` ; `bPaused` (pause).
+- Options d'URL : `track=N?char=C?menu=M` (M=0 course directe, 1 titre, 3 choix du circuit). `-nkauto` saute les menus.
+- Caméra de menu `MenuCam` en orbite ; choix du pilote = `Player->SetModel` en direct ; `StartRace()` échange le
+  modèle avec l'adversaire qui avait le même pilote.
+- Test : `-nkmenu` → captures `nk_menu_0_titre … 5_resultats.png` puis quitte (ne pas combiner avec -nkauto).

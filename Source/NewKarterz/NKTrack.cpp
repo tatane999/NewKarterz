@@ -244,10 +244,8 @@ void ANKTrack::BuildDecor(int32 Index)
 	// décor fixe (fusionné, coordonnées monde)
 	if (UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Decor/t%d_static.t%d_static"), Index, Index)))
 	{
-		// collision uniquement pour la caméra (évite qu'elle traverse l'arche de départ, les panneaux...)
-		if (UBodySetup* BS = SM->GetBodySetup()) BS->CollisionTraceFlag = CTF_UseComplexAsSimple;
-		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this); C->SetStaticMesh(SM); C->SetupAttachment(RootComponent);
-		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly); C->SetCollisionResponseToAllChannels(ECR_Ignore); C->SetCollisionResponseToChannel(ECC_Camera, ECR_Block);
+				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this); C->SetStaticMesh(SM); C->SetupAttachment(RootComponent);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->RegisterComponent(); DecorComps.Add(C);
 	}
 	// éléments répétés (arbres, rochers, herbes...) en instances

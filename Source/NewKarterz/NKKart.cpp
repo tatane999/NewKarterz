@@ -24,9 +24,9 @@ ANKKart::ANKKart()
 	Flame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Flame")); Flame->SetupAttachment(Visual); Flame->SetCollisionEnabled(ECollisionEnabled::NoCollision); Flame->SetVisibility(false);
 	Shadow = nullptr;
 	Arm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Arm")); Arm->SetupAttachment(Root);
-	Arm->TargetArmLength = 780.f; Arm->SocketOffset = FVector(0,0,300); Arm->bDoCollisionTest = true; Arm->ProbeSize = 14.f; Arm->ProbeChannel = ECC_Camera;
+	Arm->TargetArmLength = 720.f; Arm->SocketOffset = FVector(0,0,215); Arm->bDoCollisionTest = false;
 	Arm->bEnableCameraLag = true; Arm->CameraLagSpeed = 9.f; Arm->bEnableCameraRotationLag = true; Arm->CameraRotationLagSpeed = 6.f;
-	Arm->SetRelativeRotation(FRotator(-11,0,0)); Arm->bInheritPitch=false; Arm->bInheritRoll=false;
+	Arm->SetRelativeRotation(FRotator(-8,0,0)); Arm->bInheritPitch=false; Arm->bInheritRoll=false;
 	Cam = CreateDefaultSubobject<UCameraComponent>(TEXT("Cam")); Cam->SetupAttachment(Arm); Cam->FieldOfView = 80.f;
 	Cam->PostProcessSettings.bOverride_MotionBlurAmount = true; Cam->PostProcessSettings.MotionBlurAmount = 0.18f;
 	AutoPossessAI = EAutoPossessAI::Disabled;
@@ -35,13 +35,7 @@ ANKKart::ANKKart()
 void ANKKart::Init(ANKTrack* InTrack, int32 Slot, bool bPlayer, int32 KartModel, const FString& DriverName)
 {
 	Track = InTrack; bIsPlayer = bPlayer; Name = DriverName;
-	UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Chars/c%d.c%d"), KartModel, KartModel));
-	if (!M) M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Karts/k%d.k%d"), KartModel%13, KartModel%13));
-	if (!M) M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-	Body->SetStaticMesh(M);
-	// les GLB sont orientés +Z avant (three.js) : on tourne de -90° pour l'avant +X d'Unreal
-	Body->SetRelativeRotation(FRotator(0,-90,0)); Body->SetRelativeScale3D(FVector(1.f));
-	if (M && M->GetName()==TEXT("Cube")) { Body->SetRelativeScale3D(FVector(2.4f,1.4f,0.6f)); }
+	SetModel(KartModel);
 	UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cone.Cone"));
 	Flame->SetStaticMesh(Cone); Flame->SetRelativeLocation(FVector(-235,0,70)); Flame->SetRelativeRotation(FRotator(90,0,0)); Flame->SetRelativeScale3D(FVector(0.35f,0.35f,0.8f));
 	if (UMaterialInterface* FM = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/NK/Mat/M_Flame.M_Flame"))) Flame->SetMaterial(0, FM);
@@ -54,6 +48,18 @@ void ANKKart::Init(ANKTrack* InTrack, int32 Slot, bool bPlayer, int32 KartModel,
 	GroundZ = P.Z; LastSafe = Idx;
 	AILane = FMath::FRandRange(-0.55f,0.55f); AISkill = FMath::FRandRange(0.9f,0.99f);
 	if (!bIsPlayer){ Cam->Deactivate(); Arm->Deactivate(); }
+}
+
+void ANKKart::SetModel(int32 KartModel)
+{
+	Model = KartModel;
+	UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Chars/c%d.c%d"), KartModel, KartModel));
+	if (!M) M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Karts/k%d.k%d"), KartModel%13, KartModel%13));
+	if (!M) M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	Body->SetStaticMesh(M);
+	// les GLB sont orientés +Z avant (three.js) : on tourne de -90° pour l'avant +X d'Unreal
+	Body->SetRelativeRotation(FRotator(0,-90,0)); Body->SetRelativeScale3D(FVector(1.f));
+	if (M && M->GetName()==TEXT("Cube")) { Body->SetRelativeScale3D(FVector(2.4f,1.4f,0.6f)); }
 }
 
 void ANKKart::BuildInput()
@@ -229,6 +235,6 @@ void ANKKart::Simulate(float Dt, const FNKInput& In0)
 	if (bIsPlayer && Cam)
 	{
 		Cam->SetFieldOfView(FMath::FInterpTo(Cam->FieldOfView, 78.f + SpdF*10.f + (BoostT>0?10.f:0.f), Dt, 4.f));
-		Arm->SetRelativeRotation(FRotator(-11, Drift? -Drift*8.f:0, 0));
+		Arm->SetRelativeRotation(FRotator(-8, Drift? -Drift*8.f:0, 0));
 	}
 }
