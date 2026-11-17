@@ -55,7 +55,7 @@ void ANKItems::Setup(ANKTrack* InTrack)
 		const int32 i = Track->Wrap((int32)(Track->N*Fr));
 		for (float j : {-1.5f, -0.5f, 0.5f, 1.5f}) Src.Add(Track->P[i] + Track->Nor[i]*j*Track->HalfW*0.42f);
 	}
-	for (const FVector& S : Src) { FNKBox B; float Z; B.Pos = S; if (Ground(S, Z)) B.Pos.Z = Z + 150.f; Boxes.Add(B); }
+	for (const FVector& S : Src) { FNKBox B; float Z; B.Pos = S; if (Ground(S, Z)) B.Pos.Z = Z + 175.f; Boxes.Add(B); }
 }
 
 FString ANKItems::ItemName(int32 It)
@@ -184,8 +184,8 @@ void ANKItems::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts)
 	for (const FNKBox& B : Boxes) if (B.Respawn <= 0)
 	{
 		const FVector Bp = B.Pos + FVector(0,0,FMath::Sin(Time*3.f + B.Pos.X*0.01f)*15.f);
-		XB.Add(FTransform(FRotator(Time*40.f, Time*90.f, 20.f), Bp, FVector(1.25f)));
-		XC.Add(FTransform(FRotator(-Time*70.f, -Time*120.f, 45.f), Bp, FVector(0.38f + 0.06f*FMath::Sin(Time*6.f))));
+		XB.Add(FTransform(FRotator(Time*40.f, Time*90.f, 20.f), Bp, FVector(1.75f)));
+		XC.Add(FTransform(FRotator(-Time*70.f, -Time*120.f, 45.f), Bp, FVector(0.5f + 0.08f*FMath::Sin(Time*6.f))));
 	}
 	for (const FNKProj& P : Projs)
 	{

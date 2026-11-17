@@ -379,6 +379,20 @@ void ANKHUD::DrawHUD()
 	const int32 Ms = (int32)(GM->RaceTime*1000); Txt(FString::Printf(TEXT("%d:%02d.%02d"), Ms/60000, (Ms/1000)%60, (Ms/10)%100), Sx-200*Sc, 24*Sc, 1.5f*Sc, FLinearColor::White);
 	Txt(FString::Printf(TEXT("%d KM/H"), FMath::RoundToInt(FMath::Abs(P->Speed)*0.036f)), Sx-230*Sc, Sy-80*Sc, 1.8f*Sc, FLinearColor::White);
 	if (P->Drift && P->TurboLv>0) Txt(P->TurboLv==3?TEXT("TURBO VIOLET"):P->TurboLv==2?TEXT("TURBO ORANGE"):TEXT("TURBO BLEU"), Sx/2, Sy-120*Sc, 1.3f*Sc, P->TurboLv==3?FLinearColor(0.8f,0.3f,1):P->TurboLv==2?FLinearColor(1,0.55f,0.1f):FLinearColor(0.3f,0.7f,1), true);
+	// lignes de vitesse pendant le turbo
+	if (P->BoostT > 0 && GM->State == ENKState::Race)
+	{
+		const float A = FMath::Min(1.f, P->BoostT*2.f);
+		FRandomStream Rs((int32)(GM->RaceTime*20.f));
+		for (int32 i=0;i<34;i++)
+		{
+			const float Ang = Rs.FRandRange(0.f, 2.f*PI); const FVector2D Dir(FMath::Cos(Ang), FMath::Sin(Ang));
+			const float R0 = Rs.FRandRange(0.42f, 0.62f)*Sy, R1 = R0 + Rs.FRandRange(0.12f, 0.32f)*Sy;
+			const FVector2D C(Sx/2, Sy*0.55f);
+			FCanvasLineItem L(C + Dir*R0, C + Dir*R1); L.LineThickness = Rs.FRandRange(1.5f, 3.5f)*Sc;
+			L.SetColor(FLinearColor(1,1,1,0.28f*A)); L.BlendMode = SE_BLEND_Translucent; Canvas->DrawItem(L);
+		}
+	}
 	// case d'objet
 	{
 		const float X = 30*Sc, Y = 150*Sc, W = 96*Sc;
