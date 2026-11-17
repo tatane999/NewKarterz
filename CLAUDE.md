@@ -45,3 +45,11 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 3. Personnages animés (squelettes Melannie/Rocco), roues qui tournent, effets Niagara (poussière, étincelles, turbo).
 4. Sons et musique (MetaSounds), commentateur.
 5. Modes (Grand Prix, contre-la-montre, élimination, 2 joueurs) comme dans la version web.
+
+## Journal / pièges (décor photoscanné)
+- Sapins Poly Haven (`fir_tree_01`, CC0) : le glTF contient 3 arbres (a/b/c) côte à côte ; on n'exporte que `b_LOD0`
+  sans décimation (`Scripts/blender_join_fir.py`) → `/Game/NK/PH/ph_fir2` (Nanite, 2,3 M triangles).
+- Aiguilles invisibles en jeu : Nanite les élimine au loin → `shape_preservation = PRESERVE_AREA` (`nanite_area.py`).
+- Matériaux feuillage : parent Interchange « Blend » (translucide) remplacé par `/Game/NK/Mat/M_Foliage`
+  (masqué, deux faces, Two Sided Foliage, paramètre Tint) via `foliage_mat.py`.
+- Remplacements par circuit : `NKData/tN_repl.json` (`{"i1":{"mesh":"ph_fir2","k":1.0}}`) ; `insp_decor.py` liste les groupes iN.
