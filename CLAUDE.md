@@ -103,6 +103,8 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Objets : boîte en verre irisé `M_ItemBox` + cœur lumineux `M_ItemCore`, carapaces vernies avec anneau blanc,
   banane en V, orbes de bouclier lumineux (`item_mats.py`).
 - Ambiances (ANKFx, autour de la caméra) : neige (Pic Givré, ~2200 flocons), lucioles clignotantes (Forêt), braises (Volcan).
+- Traces de pneus pendant les dérapages (Kind 2 dans ANKFx, 7 s, max 2600).
+- Teintes de la végétation Poly Haven relevées (`tint_veg.py`, paramètre Tint de M_Foliage).
 - Forêt en lumière de fin d'après-midi (soleil −17°, teinte dorée, brouillard volumétrique chaud).
 - À faire : quelques éléments du décor fixe très sombres (barrières, drapeaux à contre-jour), boîtes « ? » de la version web
   qui doublent les nôtres sur certains circuits, roues qui tournent, personnages animés, buissons tropicaux sur la neige.

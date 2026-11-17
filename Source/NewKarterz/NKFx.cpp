@@ -72,6 +72,20 @@ void ANKFx::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts, const FVe
 				Q.Col=C*(K->TurboLv>0?1.f:0.12f); Q.Max=Q.Life=FMath::FRandRange(0.18f,0.4f); Q.S0=K->TurboLv>0?9.f:5.f; Q.S1=2.f; Q.Drag=1.5f; Q.Grav=1400.f; Add(Q);
 			}
 		}
+		// traces de pneus pendant le dérapage (sur la piste)
+		if (K->Drift && K->bGrounded && !K->bOff && NumMarks < 2600)
+		{
+			FVector& Lm = LastMark.FindOrAdd(K);
+			if (FVector::DistSquared(Lm, Pos) > 45.f*45.f)
+			{
+				for (const FVector& W : {WL, WR})
+				{
+					FNKPart Q; Q.Kind=2; Q.Pos=W - U*9.f; Q.Yaw=K->GetActorRotation().Yaw + K->Drift*18.f; Q.Col=FLinearColor(0.02f,0.02f,0.02f);
+					Q.Max=Q.Life=7.f; Q.S0=Q.S1=1.f; Q.Drag=0; Add(Q); NumMarks++;
+				}
+				Lm = Pos;
+			}
+		}
 		// poussière hors piste / en dérapage
 		if (K->bGrounded && FMath::Abs(K->Speed) > 700.f && (K->bOff || K->Drift) && FMath::FRand() < (K->bOff ? 0.8f : 0.35f))
 			for (const FVector& W : {WL, WR})
@@ -107,7 +121,7 @@ void ANKFx::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts, const FVe
 		}
 	}
 	// simulation + rendu
-	TArray<FTransform> XA, XD; TArray<float> CA, CD; NumAmb = 0; for (const FNKPart& Q : P) if (Q.bAmb) NumAmb++;
+	TArray<FTransform> XA, XD; TArray<float> CA, CD; NumAmb = 0; NumMarks = 0; for (const FNKPart& Q : P) { if (Q.bAmb) NumAmb++; if (Q.Kind==2) NumMarks++; }
 	for (int32 i=P.Num()-1;i>=0;i--)
 	{
 		FNKPart& Q = P[i]; Q.Life -= Dt;
@@ -123,6 +137,11 @@ void ANKFx::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts, const FVe
 			XA.Add(FTransform(Q.Vel.Rotation(), Q.Pos, FVector(S*L, S, S)));
 			const float A = Q.bAmb ? FMath::Min(1.f, FMath::Min(T*5.f, (1.f-T)*4.f)) * (Biome==TEXT("pine") ? 0.5f+0.5f*FMath::Sin(Acc*3.f+Q.Phase) : 1.f) : 1.f - T*T;
 			CA.Append({Q.Col.R, Q.Col.G, Q.Col.B, A});
+		}
+		else if (Q.Kind == 2)
+		{
+			XD.Add(FTransform(FRotator(0, Q.Yaw, 0), Q.Pos, FVector(0.5f, 0.17f, 0.012f)));
+			CD.Append({Q.Col.R, Q.Col.G, Q.Col.B, 0.55f*(1.f - T*T)});
 		}
 		else
 		{
