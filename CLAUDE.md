@@ -45,7 +45,7 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
    options (nombre de tours, difficulté, nombre de karts), écran de chargement.
 2. Remplacer le décor low-poly par des modèles photoscannés CC0 (Poly Haven / ambientCG) en Nanite ; couleurs par instance.
 3. Personnages animés (squelettes Melannie/Rocco) ; roues qui tournent : faites (25/27 persos) ; effets : faits (ANKFx).
-4. Sons et musique (MetaSounds), commentateur.
+4. Sons et musique : faits (v1, ANKAudio). À enrichir : commentateur, sons d'ambiance par circuit, réglages de volume.
 5. Modes (Grand Prix, contre-la-montre, élimination, 2 joueurs) comme dans la version web.
 
 ## Journal / pièges (décor photoscanné)
@@ -122,3 +122,13 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - `NKData/wheels.json` lu par `ANKKart::SetModel` (repli sur l'ancien modèle fusionné). Rotation : Roll = −spin/r,
   braquage avant Yaw = −SteerVis·24°.
 - Sans roues séparées : c9 et c22 (pas de pneus).
+
+## Son (17/11 nuit) — NKAudio.h/.cpp (ANKAudio, créé par le GameMode)
+- Musiques CC0 de MintoDog (voir CREDITS.md) téléchargées sur le PC dans `audio\music` ; jingles renommés `j_*`.
+  Bruitages synthétisés par `Tools/sfx_gen.py` (numpy) → `audio\sfx\*.wav`. Import : `Scripts/import_audio.py`
+  → `/Game/NK/Audio` (OGG accepté par UE 5.8 ; boucles marquées `looping`).
+- Musique : menu = Fever Stadium ; course = thème du circuit ; dernier tour = version Climax + jingle ; arrivée = jingle
+  Best/Good/Bad puis boucle. Moteur par kart (pitch = 0,7 + vitesse·1,55, +0,3 au turbo), crissement en dérapage,
+  bruitages d'événements détectés par différence d'état (atterrissage, turbo, boîte, roulette, objet, touché, bouclier,
+  lancer, tour, décompte, départ) ; atténuation 3D pour l'IA. Sons d'interface dans les menus.
+- Contrôle sans écouter : la ligne `son[musique=… moteurs=… pitch=…]` de `nkdbg.txt` (mode -nkshots).

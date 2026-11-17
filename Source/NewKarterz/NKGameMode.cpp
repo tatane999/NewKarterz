@@ -3,6 +3,9 @@
 #include "NKKart.h"
 #include "NKItems.h"
 #include "NKFx.h"
+#include "NKAudio.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundBase.h"
 #include "CanvasItem.h"
 #include "NewKarterz.h"
 #include "Engine/World.h"
@@ -132,6 +135,7 @@ void ANKGameMode::BeginPlay()
 	}
 	Items = GetWorld()->SpawnActor<ANKItems>(ANKItems::StaticClass(), FTransform::Identity, P); if (Items) Items->Setup(Track);
 	Fx = GetWorld()->SpawnActor<ANKFx>(ANKFx::StaticClass(), FTransform::Identity, P); if (Fx) Fx->Setup(Track->Deco);
+	Audio = GetWorld()->SpawnActor<ANKAudio>(ANKAudio::StaticClass(), FTransform::Identity, P); if (Audio) Audio->Setup(this);
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) { PC->Possess(Player); PC->SetViewTarget(Player); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly()); }
 	if (MenuStart > 0)
 	{
@@ -168,6 +172,7 @@ void ANKGameMode::StartRace()
 void ANKGameMode::TickMenu(float Dt, APlayerController* PC)
 {
 	MenuT += Dt;
+	if (Audio) { if (JustPressed(PC, K_CONFIRM)) Audio->UI(true); else if (JustPressed(PC, K_LEFT) || JustPressed(PC, K_RIGHT) || JustPressed(PC, K_UP) || JustPressed(PC, K_DOWN) || JustPressed(PC, K_BACK)) Audio->UI(false); }
 	if (MenuPage == 0)
 	{
 		if (JustPressed(PC, K_CONFIRM)) MenuPage = 1;
@@ -208,6 +213,7 @@ void ANKGameMode::Tick(float Dt)
 	if (!Track || !Player) return;
 	Dt = FMath::Min(Dt, 1.f/30.f);
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (Audio) Audio->Update(Dt);
 	{ // test des menus : -nkmenu (captures nk_menu_*.png puis quitte)
 		static bool bMenuTest = FParse::Param(FCommandLine::Get(), TEXT("nkmenu")); static float T=0; static int32 St=0;
 		if (bMenuTest)
@@ -237,6 +243,7 @@ void ANKGameMode::Tick(float Dt)
 	}
 	if (bPaused)
 	{
+		if (Audio) { if (JustPressed(PC, K_CONFIRM)) Audio->UI(true); else if (JustPressed(PC, K_UP) || JustPressed(PC, K_DOWN)) Audio->UI(false); }
 		if (JustPressed(PC, K_UP)) PauseSel = (PauseSel + 4) % 5;
 		if (JustPressed(PC, K_DOWN)) PauseSel = (PauseSel + 1) % 5;
 		if (JustPressed(PC, {EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right, EKeys::Gamepad_FaceButton_Right})) bPaused = false;
@@ -279,7 +286,7 @@ void ANKGameMode::Tick(float Dt)
 		  else { DCam->SetActorLocation(L + FVector(0,0,600) + Player->GetActorRightVector()*1500); DCam->SetActorRotation((L-DCam->GetActorLocation()).Rotation()); }
 		  if (APlayerController* Q=GetWorld()->GetFirstPlayerController()) Q->SetViewTarget(DCam); }
 		if (bShots && Shot<5 && RaceTime>=Times[Shot]) { FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("nk_t%d_%d.png"), TrackIndex, Shot), false, false);
-		  const FVector L=Player->GetActorLocation(); FString Dbg=FString::Printf(TEXT("t=%.1f objets=%d touches=%d boites=%d pos=%s gz=%.0f grounded=%d idx=%d speed=%.0f P=%s cam=%s\n"), RaceTime, Items?Items->StatUsed:0, Items?Items->StatHits:0, Items?Items->StatBoxes:0, *L.ToString(), Player->GroundZ, Player->bGrounded, Player->Idx, Player->Speed, *Track->P[Player->Idx].ToString(), *Player->Cam->GetComponentLocation().ToString());
+		  const FVector L=Player->GetActorLocation(); FString Dbg=FString::Printf(TEXT("t=%.1f son[musique=%s moteurs=%d pitch=%.2f] objets=%d touches=%d boites=%d pos=%s gz=%.0f grounded=%d idx=%d speed=%.0f P=%s cam=%s\n"), RaceTime, (Audio && Audio->Music && Audio->Music->IsPlaying() && Audio->Music->Sound) ? *Audio->Music->Sound->GetName() : TEXT("aucune"), Audio ? Audio->Engines.FilterByPredicate([](const TObjectPtr<UAudioComponent>& E){ return E && E->IsPlaying(); }).Num() : 0, (Audio && Audio->Engines.Num()) ? Audio->Engines.Last()->PitchMultiplier : 0.f, Items?Items->StatUsed:0, Items?Items->StatHits:0, Items?Items->StatBoxes:0, *L.ToString(), Player->GroundZ, Player->bGrounded, Player->Idx, Player->Speed, *Track->P[Player->Idx].ToString(), *Player->Cam->GetComponentLocation().ToString());
 		  FFileHelper::SaveStringToFile(Dbg, *(FPaths::ProjectSavedDir()/TEXT("nkdbg.txt")), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 		  Shot++; if (DCam && Shot!=2 && Shot!=4){} }
 		if (DCam && (Shot==2||Shot==4) && RaceTime>=Times[Shot-1]+0.5f) { if (APlayerController* Q=GetWorld()->GetFirstPlayerController()) Q->SetViewTarget(Player); DCam->Destroy(); DCam=nullptr; }
