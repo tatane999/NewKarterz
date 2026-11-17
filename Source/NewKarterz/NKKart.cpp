@@ -24,7 +24,7 @@ ANKKart::ANKKart()
 	Flame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Flame")); Flame->SetupAttachment(Visual); Flame->SetCollisionEnabled(ECollisionEnabled::NoCollision); Flame->SetVisibility(false);
 	Shadow = nullptr;
 	Arm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Arm")); Arm->SetupAttachment(Root);
-	Arm->TargetArmLength = 780.f; Arm->SocketOffset = FVector(0,0,300); Arm->bDoCollisionTest = false;
+	Arm->TargetArmLength = 780.f; Arm->SocketOffset = FVector(0,0,300); Arm->bDoCollisionTest = true; Arm->ProbeSize = 14.f; Arm->ProbeChannel = ECC_Camera;
 	Arm->bEnableCameraLag = true; Arm->CameraLagSpeed = 9.f; Arm->bEnableCameraRotationLag = true; Arm->CameraRotationLagSpeed = 6.f;
 	Arm->SetRelativeRotation(FRotator(-11,0,0)); Arm->bInheritPitch=false; Arm->bInheritRoll=false;
 	Cam = CreateDefaultSubobject<UCameraComponent>(TEXT("Cam")); Cam->SetupAttachment(Arm); Cam->FieldOfView = 80.f;
@@ -116,6 +116,12 @@ FNKInput ANKKart::ComputeAI(float Dt)
 	AIDriftCd -= Dt;
 	if (Bend > 38.f && Speed > 2000.f && AIDriftCd<=0 && !Drift) { In.DriftHeld = true; In.DriftPressed = true; AIDriftCd = 1.5f; }
 	else if (Drift && Bend > 15.f) In.DriftHeld = true;
+	// objets : utilisation après un court délai aléatoire (carapace rouge seulement s'il y a quelqu'un devant)
+	if (Item >= 0 && RollT <= 0)
+	{
+		AIItemT += Dt;
+		if (AIItemT > AIItemDelay && (Item != 2 || Rank > 0)) { In.Item = true; AIItemT = 0; AIItemDelay = FMath::FRandRange(0.8f, 3.5f); }
+	}
 	return In;
 }
 

@@ -40,7 +40,8 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Textes de l'interface et messages à Antoine : en **français**.
 
 ## Pistes d'amélioration (par priorité)
-1. Objets (boîtes, carapaces, turbo, bouclier…) et menus (choix perso/kart/circuit, pause, résultats).
+1. Menus (titre, choix perso/circuit, pause, résultats détaillés). Objets : faits (v1) — à enrichir : vrais modèles
+   (boîte « ? » translucide, carapaces, banane), sons, effets d'impact, IA qui évite les bananes.
 2. Remplacer le décor low-poly par des modèles photoscannés CC0 (Poly Haven / ambientCG) en Nanite ; couleurs par instance.
 3. Personnages animés (squelettes Melannie/Rocco), roues qui tournent, effets Niagara (poussière, étincelles, turbo).
 4. Sons et musique (MetaSounds), commentateur.
@@ -53,3 +54,13 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Matériaux feuillage : parent Interchange « Blend » (translucide) remplacé par `/Game/NK/Mat/M_Foliage`
   (masqué, deux faces, Two Sided Foliage, paramètre Tint) via `foliage_mat.py`.
 - Remplacements par circuit : `NKData/tN_repl.json` (`{"i1":{"mesh":"ph_fir2","k":1.0}}`) ; `insp_decor.py` liste les groupes iN.
+
+## Objets (NKItems.h/.cpp)
+- `ANKItems` (créé par le GameMode) : boîtes = `Track->Boxes` + 2 rangées ajoutées à 1/3 et 2/3 du tour ; rendu par ISM
+  reconstruits à chaque image (BasicShapes + `BasicShapeMaterial`, paramètre `Color`).
+- Objets : banane, carapace verte (rebondit sur les bords), rouge (vise le kart devant), turbo, bouclier (8 s, 3 orbes).
+  Tirage selon le classement (`Roll`). Kart : `Item`, `RollT` (roulette 1,1 s), `ShieldT`, `HitFlash`.
+- Joueur : E / Ctrl / LB / B. L'IA utilise ses objets après 0,8–3,5 s. `nkdbg.txt` journalise objets/touches/boîtes.
+- Caméra : collision ECC_Camera sur le décor fixe (`t%d_static`, complexe) ; route/terrain ignorent la caméra.
+  ⚠ la capture à 2 s (passage sous l'arche de départ) reste blanche : la collision complexe ne semble pas jouer — à revoir.
+- Le .exe empaqueté ignore `?track=N` sur la ligne de commande (démarre sur le circuit 0).

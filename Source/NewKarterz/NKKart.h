@@ -39,6 +39,8 @@ public:
 	int32 Idx=0; float Prog=0; int32 Laps=0; float LastLapT=0; bool bOff=false;
 	float MaxSpeed=3100.f, Accel=1700.f; float AIMul=1.f, AISkill=0.95f, AILane=0.f, AIDriftCd=0;
 	FVector GroundN=FVector::UpVector; float GroundZ=0; int32 LastSafe=0;
+	// objets
+	int32 Item=-1, PendingItem=-1; float RollT=0, ShieldT=0, HitFlash=0, AIItemT=0, AIItemDelay=1.5f; bool bPrevItem=false;
 
 	// entrées joueur
 	FNKInput PIn; bool bPrevDrift=false;

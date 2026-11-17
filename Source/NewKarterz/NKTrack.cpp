@@ -1,4 +1,5 @@
 #include "NKTrack.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "NewKarterz.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -30,7 +31,7 @@ ANKTrack::ANKTrack()
 	Water = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Water")); Water->SetupAttachment(R);
 	for (UProceduralMeshComponent* C : {Road.Get(), Terrain.Get(), Edges.Get()})
 	{
-		C->bUseAsyncCooking = true; C->SetCollisionProfileName(TEXT("BlockAll")); C->bUseComplexAsSimpleCollision = true;
+		C->bUseAsyncCooking = true; C->SetCollisionProfileName(TEXT("BlockAll")); C->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore); C->bUseComplexAsSimpleCollision = true;
 		C->SetMobility(EComponentMobility::Static);
 	}
 	Water->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -243,7 +244,11 @@ void ANKTrack::BuildDecor(int32 Index)
 	// décor fixe (fusionné, coordonnées monde)
 	if (UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Decor/t%d_static.t%d_static"), Index, Index)))
 	{
-		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this); C->SetStaticMesh(SM); C->SetupAttachment(RootComponent); C->SetCollisionEnabled(ECollisionEnabled::NoCollision); C->RegisterComponent(); DecorComps.Add(C);
+		// collision uniquement pour la caméra (évite qu'elle traverse l'arche de départ, les panneaux...)
+		if (UBodySetup* BS = SM->GetBodySetup()) BS->CollisionTraceFlag = CTF_UseComplexAsSimple;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this); C->SetStaticMesh(SM); C->SetupAttachment(RootComponent);
+		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly); C->SetCollisionResponseToAllChannels(ECR_Ignore); C->SetCollisionResponseToChannel(ECC_Camera, ECR_Block);
+		C->RegisterComponent(); DecorComps.Add(C);
 	}
 	// éléments répétés (arbres, rochers, herbes...) en instances
 	FString Json; if (!FFileHelper::LoadFileToString(Json, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_inst.json"), Index)))) return;

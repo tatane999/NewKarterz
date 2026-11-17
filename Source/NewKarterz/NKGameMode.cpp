@@ -1,6 +1,8 @@
 #include "NKGameMode.h"
 #include "NKTrack.h"
 #include "NKKart.h"
+#include "NKItems.h"
+#include "CanvasItem.h"
 #include "NewKarterz.h"
 #include "Engine/World.h"
 #include "Engine/Canvas.h"
@@ -86,6 +88,7 @@ void ANKGameMode::BeginPlay()
 		K->Init(Track, s, s==PlayerSlot, Ci, CN[Ci]);
 		Karts.Add(K); if (s==PlayerSlot) Player = K;
 	}
+	Items = GetWorld()->SpawnActor<ANKItems>(ANKItems::StaticClass(), FTransform::Identity, P); if (Items) Items->Setup(Track);
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) { PC->Possess(Player); PC->SetViewTarget(Player); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly()); }
 }
 
@@ -120,6 +123,7 @@ void ANKGameMode::Tick(float Dt)
 	{
 		Cd -= Dt; if (Cd<=0) State = ENKState::Race;
 		for (ANKKart* K : Karts) K->Simulate(Dt, FNKInput());
+		if (Items) Items->Update(Dt, Karts);
 		return;
 	}
 	RaceTime += Dt;
@@ -134,7 +138,7 @@ void ANKGameMode::Tick(float Dt)
 		  else { DCam->SetActorLocation(L + FVector(0,0,600) + Player->GetActorRightVector()*1500); DCam->SetActorRotation((L-DCam->GetActorLocation()).Rotation()); }
 		  if (APlayerController* Q=GetWorld()->GetFirstPlayerController()) Q->SetViewTarget(DCam); }
 		if (bShots && Shot<5 && RaceTime>=Times[Shot]) { FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("nk_t%d_%d.png"), TrackIndex, Shot), false, false);
-		  const FVector L=Player->GetActorLocation(); FString Dbg=FString::Printf(TEXT("t=%.1f pos=%s gz=%.0f grounded=%d idx=%d speed=%.0f P=%s cam=%s\n"), RaceTime, *L.ToString(), Player->GroundZ, Player->bGrounded, Player->Idx, Player->Speed, *Track->P[Player->Idx].ToString(), *Player->Cam->GetComponentLocation().ToString());
+		  const FVector L=Player->GetActorLocation(); FString Dbg=FString::Printf(TEXT("t=%.1f objets=%d touches=%d boites=%d pos=%s gz=%.0f grounded=%d idx=%d speed=%.0f P=%s cam=%s\n"), RaceTime, Items?Items->StatUsed:0, Items?Items->StatHits:0, Items?Items->StatBoxes:0, *L.ToString(), Player->GroundZ, Player->bGrounded, Player->Idx, Player->Speed, *Track->P[Player->Idx].ToString(), *Player->Cam->GetComponentLocation().ToString());
 		  FFileHelper::SaveStringToFile(Dbg, *(FPaths::ProjectSavedDir()/TEXT("nkdbg.txt")), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 		  Shot++; if (DCam && Shot!=2 && Shot!=4){} }
 		if (DCam && (Shot==2||Shot==4) && RaceTime>=Times[Shot-1]+0.5f) { if (APlayerController* Q=GetWorld()->GetFirstPlayerController()) Q->SetViewTarget(Player); DCam->Destroy(); DCam=nullptr; }
@@ -145,8 +149,11 @@ void ANKGameMode::Tick(float Dt)
 		FNKInput In = (K==Player && !K->bFinished) ? K->PIn : K->ComputeAI(Dt);
 		if (K!=Player) { K->AIMul = K->AISkill * (Player->Rank < K->Rank ? 1.04f : 0.97f); }
 		K->Simulate(Dt, In);
+		const bool bUse = In.Item && !K->bPrevItem; K->bPrevItem = In.Item;
+		if (bUse && Items && K->Item >= 0 && K->RollT <= 0) Items->Use(K, Karts);
 		if (!K->bFinished && K->Laps > TotalLaps) { K->bFinished = true; K->FinishTime = RaceTime; }
 	}
+	if (Items) Items->Update(Dt, Karts);
 	// collisions entre karts
 	for (int32 it=0; it<3; it++) for (int32 i=0;i<Karts.Num();i++) for (int32 j=i+1;j<Karts.Num();j++)
 	{
@@ -176,6 +183,23 @@ void ANKHUD::DrawHUD()
 	const int32 Ms = (int32)(GM->RaceTime*1000); Txt(FString::Printf(TEXT("%d:%02d.%02d"), Ms/60000, (Ms/1000)%60, (Ms/10)%100), Sx-200*Sc, 24*Sc, 1.5f*Sc, FLinearColor::White);
 	Txt(FString::Printf(TEXT("%d KM/H"), FMath::RoundToInt(FMath::Abs(P->Speed)*0.036f)), Sx-230*Sc, Sy-80*Sc, 1.8f*Sc, FLinearColor::White);
 	if (P->Drift && P->TurboLv>0) Txt(P->TurboLv==3?TEXT("TURBO VIOLET"):P->TurboLv==2?TEXT("TURBO ORANGE"):TEXT("TURBO BLEU"), Sx/2, Sy-120*Sc, 1.3f*Sc, P->TurboLv==3?FLinearColor(0.8f,0.3f,1):P->TurboLv==2?FLinearColor(1,0.55f,0.1f):FLinearColor(0.3f,0.7f,1), true);
+	// case d'objet
+	{
+		const float X = 30*Sc, Y = 150*Sc, W = 96*Sc;
+		FCanvasTileItem Bg(FVector2D(X,Y), FVector2D(W,W), FLinearColor(0,0,0,0.45f)); Bg.BlendMode = SE_BLEND_Translucent; Canvas->DrawItem(Bg);
+		int32 Show = P->Item; if (P->RollT > 0) Show = ((int32)(GM->RaceTime*14.f)) % NKI_Count;
+		if (Show >= 0)
+		{
+			const FLinearColor C = ANKItems::ItemColor(Show);
+			FCanvasTileItem In(FVector2D(X+14*Sc,Y+14*Sc), FVector2D(W-28*Sc,W-28*Sc), C*FLinearColor(1,1,1,P->RollT>0?0.6f:0.95f)); In.BlendMode = SE_BLEND_Translucent; Canvas->DrawItem(In);
+			const FString Nm = ANKItems::ItemName(Show);
+			Txt(Nm.Left(1), X+W/2, Y+18*Sc, 2.4f*Sc, FLinearColor::White, true);
+			Txt(Nm, X+W/2, Y+W+4*Sc, 0.75f*Sc, C, true);
+		}
+		else Txt(TEXT("E / LB : objet"), X+W/2, Y+W+4*Sc, 0.6f*Sc, FLinearColor(1,1,1,0.5f), true);
+		if (P->ShieldT > 0) Txt(FString::Printf(TEXT("BOUCLIER %.0f s"), FMath::CeilToFloat(P->ShieldT)), Sx/2, Sy-160*Sc, 1.1f*Sc, ANKItems::ItemColor(NKI_Shield), true);
+		if (P->HitFlash > 0) Txt(TEXT("TOUCHÉ !"), Sx/2, Sy*0.36f, 2.6f*Sc, FLinearColor(1,0.25f,0.2f,FMath::Min(1.f,P->HitFlash)), true);
+	}
 	Txt(GM->Track->TrackName, Sx/2, 18*Sc, 1.1f*Sc, FLinearColor(1,1,1,0.85f), true);
 	if (GM->State==ENKState::Countdown){ const int32 n = FMath::CeilToInt(GM->Cd-0.9f); Txt(n>0?FString::FromInt(n):TEXT("PARTEZ !"), Sx/2, Sy*0.32f, 5.f*Sc, FLinearColor(1,0.85f,0.3f), true); }
 	if (GM->State==ENKState::Finished)
