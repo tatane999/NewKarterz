@@ -34,9 +34,11 @@ public:
 	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> IGreen;
 	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> IRed;
 	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> IOrb;
+	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> ICore;
+	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> IRim;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> BoxMID;
 private:
 	int32 Roll(int32 Rank, int32 Num) const;
 	bool Ground(const FVector& At, float& Z) const;
-	UInstancedStaticMeshComponent* MkISM(const TCHAR* Name, const TCHAR* Mesh, const FLinearColor& C, UMaterialInstanceDynamic** OutMID=nullptr);
+	UInstancedStaticMeshComponent* MkISM(const TCHAR* Name, const TCHAR* Mesh, const FLinearColor& C, UMaterialInstanceDynamic** OutMID=nullptr, const TCHAR* MatPath=nullptr, bool bShadow=true);
 };

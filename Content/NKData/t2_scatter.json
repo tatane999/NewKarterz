@@ -1,0 +1,35 @@
+[
+ {
+  "mesh": [
+   "ph_wild_rooibos_bush_0",
+   "ph_wild_rooibos_bush_1",
+   "ph_wild_rooibos_bush_2",
+   "ph_wild_rooibos_bush_3"
+  ],
+  "n": 2700,
+  "near": 100,
+  "far": 4500,
+  "s": [
+   4.0,
+   6.5
+  ],
+  "cull": 14000,
+  "shadow": 1
+ },
+ {
+  "mesh": [
+   "ph_grass_medium_02_0",
+   "ph_grass_medium_02_1",
+   "ph_grass_medium_02_2",
+   "ph_grass_medium_02_3"
+  ],
+  "n": 5200,
+  "near": 60,
+  "far": 2800,
+  "s": [
+   6.0,
+   10.0
+  ],
+  "cull": 10000
+ }
+]

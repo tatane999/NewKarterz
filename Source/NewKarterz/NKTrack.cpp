@@ -280,6 +280,7 @@ void ANKTrack::BuildDecor(int32 Index)
 			if (SM->GetNumTriangles(0) <= 12 && SM->GetBounds().BoxExtent.Z < 80.f)
 				Base *= Deco==TEXT("palm") ? FLinearColor(0.75f,0.62f,0.32f) : Deco==TEXT("pine") ? FLinearColor(0.42f,0.62f,0.22f) : Deco==TEXT("snow") ? FLinearColor(0.85f,0.9f,0.95f) : FLinearColor(0.35f,0.28f,0.22f);
 			MD->SetVectorParameterValue(TEXT("Base"), Base);
+			if (SM->GetNumTriangles(0) <= 12 && SM->GetBounds().BoxExtent.Z < 80.f) MD->SetScalarParameterValue(TEXT("Wind"), 5.f);
 			for (int32 s=0; s<SM->GetStaticMaterials().Num(); s++) HC->SetMaterial(s, MD);
 			HC->NumCustomDataFloats = 3;
 			HC->AddInstances(Xf, false, true);
@@ -293,4 +294,55 @@ void ANKTrack::BuildDecor(int32 Index)
 		Total += Xf.Num(); DecorComps.Add(HC);
 	}
 	UE_LOG(LogNK, Log, TEXT("Décor : %d types, %d instances"), Arr.Num(), Total);
+	BuildScatter(Index);
+}
+
+// végétation dispersée autour de la piste : NKData/tN_scatter.json =
+// [{"mesh":["ph_grass_bermuda_01_0",...],"n":4000,"near":100,"far":3000,"s":[0.8,1.3],"cull":14000,"wind":1,"shadow":0}]
+void ANKTrack::BuildScatter(int32 Index)
+{
+	FString Js; if (!FFileHelper::LoadFileToString(Js, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_scatter.json"), Index)))) return;
+	TArray<TSharedPtr<FJsonValue>> Arr; TSharedRef<TJsonReader<>> Rd = TJsonReaderFactory<>::Create(Js); if (!FJsonSerializer::Deserialize(Rd, Arr)) return;
+	FRandomStream Rs(1234 + Index*77);
+	int32 Total = 0;
+	for (const TSharedPtr<FJsonValue>& V : Arr)
+	{
+		const TSharedPtr<FJsonObject> O = V->AsObject();
+		TArray<UStaticMesh*> Ms;
+		for (const TSharedPtr<FJsonValue>& Mn : O->GetArrayField(TEXT("mesh"))) { const FString S = Mn->AsString(); if (UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/PH/%s.%s"), *S, *S))) Ms.Add(SM); }
+		if (!Ms.Num()) continue;
+		const int32 Num = (int32)O->GetNumberField(TEXT("n")); const float Near = O->GetNumberField(TEXT("near")), Far = O->GetNumberField(TEXT("far"));
+		const TArray<TSharedPtr<FJsonValue>>& Sc = O->GetArrayField(TEXT("s")); const float S0 = Sc[0]->AsNumber(), S1 = Sc[1]->AsNumber();
+		const float Cull = O->HasField(TEXT("cull")) ? O->GetNumberField(TEXT("cull")) : 15000.f;
+		const bool bShadow = O->HasField(TEXT("shadow")) && O->GetNumberField(TEXT("shadow")) > 0;
+		TArray<TArray<FTransform>> Xs; Xs.SetNum(Ms.Num());
+		for (int32 n=0; n<Num; n++)
+		{
+			const int32 i = Rs.RandRange(0, N-1); const float Side = Rs.FRand()<0.5f ? -1.f : 1.f;
+			const float D = HalfW + Near + (Far-Near)*FMath::Pow(Rs.FRand(), 1.6f);
+			FVector Pt = P[i] + Nor[i]*Side*D + Tan[i]*Rs.FRandRange(-400.f, 400.f);
+			// pas sur la piste ni sur les raccourcis
+			if (FMath::Abs(Lateral(Pt, Nearest(Pt, i, 30))) < HalfW + 60.f) continue;
+			bool bCut=false; for (const FNKCut& C : Cuts) { for (const FVector& q : C.C) if (FVector::DistSquared2D(q,Pt) < FMath::Square(C.W+150.f)) { bCut=true; break; } if (bCut) break; }
+			if (bCut) continue;
+			// hauteur et normale lues dans la grille du terrain (la collision est cuite en asynchrone)
+			const float GX = (Pt.X/100.f - Cx + Ext)*(Res-1)/(2.f*Ext), GY = (Pt.Y/100.f - Cz + Ext)*(Res-1)/(2.f*Ext);
+			if (GX < 1 || GY < 1 || GX > Res-2 || GY > Res-2) continue;
+			const float Hz = HeightAtGrid(GX, GY)*100.f; const float Cell = 2.f*Ext/(Res-1)*100.f;
+			const FVector Gn = FVector(-(HeightAtGrid(GX+1,GY)-HeightAtGrid(GX-1,GY))*100.f/(2*Cell), -(HeightAtGrid(GX,GY+1)-HeightAtGrid(GX,GY-1))*100.f/(2*Cell), 1).GetSafeNormal();
+			if (bWater && Hz < WaterZ + 30.f) continue;
+			if (Gn.Z < 0.8f) continue;
+			const FQuat Up = FQuat::FindBetweenNormals(FVector::UpVector, FMath::Lerp(FVector::UpVector, Gn, 0.6f).GetSafeNormal());
+			const FQuat Yaw(FVector::UpVector, Rs.FRandRange(0.f, 2.f*PI));
+			Xs[Rs.RandRange(0, Ms.Num()-1)].Add(FTransform(Up*Yaw, FVector(Pt.X, Pt.Y, Hz - 3.f), FVector(Rs.FRandRange(S0, S1))));
+		}
+		for (int32 k=0;k<Ms.Num();k++)
+		{
+			if (!Xs[k].Num()) continue;
+			UHierarchicalInstancedStaticMeshComponent* HC = NewObject<UHierarchicalInstancedStaticMeshComponent>(this); HC->SetStaticMesh(Ms[k]); HC->SetupAttachment(RootComponent);
+			HC->SetCollisionEnabled(ECollisionEnabled::NoCollision); HC->SetCullDistances(Cull*0.75f, Cull); HC->SetCastShadow(bShadow); HC->RegisterComponent();
+			HC->AddInstances(Xs[k], false, true); Total += Xs[k].Num(); DecorComps.Add(HC);
+		}
+	}
+	UE_LOG(LogNK, Log, TEXT("Végétation dispersée : %d instances"), Total);
 }

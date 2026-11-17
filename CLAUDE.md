@@ -88,3 +88,18 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
   AO, netteté `r.Tonemapper.Sharpen=0.8`.
 - Restes : palmiers/sapins web encore low-poly à certains endroits, corps de certains persos très sombres (couleurs
   d'origine ?), pas encore d'herbe dense ni de vent.
+
+## Végétation, vent, effets (17/11 soir)
+- Végétation Poly Haven : `Tools`→ PC `tools\ph_fetch.py` (Blender -b : télécharge le glTF 2k, exporte chaque variante
+  `ue_import\ph\ph_<id>_<k>.glb`, centrée, base à z=0). Import : `Scripts/import_ph2.py` (Nanite PRESERVE_AREA,
+  matériaux → M_Foliage + paramètre Wind) puis `fix_usage.py`.
+  Modèles : grass_medium_02, fern_02, flower_gazania, wild_rooibos_bush (tailles réelles 10–90 cm → échelle ×3–10).
+- Dispersion : `NKData/tN_scatter.json` → `ANKTrack::BuildScatter` (hauteur lue dans la grille du terrain, pas de trace :
+  la collision est cuite en asynchrone ; exclut piste, raccourcis, eau, pentes). ~16–25 k instances / circuit.
+- Vent : WPO dans M_Foliage (Wind=6 par défaut) et M_DecorInst (Wind=0, 5 pour les touffes) : sin(temps + position) × hauteur locale.
+- Effets : `NKFx.h/.cpp` (ANKFx) — particules maison sur ISM + PerInstanceCustomData (rgb, alpha) :
+  étincelles de dérapage (couleur du niveau de turbo), poussière hors-piste/dérapage (couleur du biome), flammes de turbo,
+  anneau de poussière à l'atterrissage, étoiles quand un kart est touché. Matériaux `M_FxAdd` / `M_FxDust` (`fx_mats.py`).
+- Objets : boîte en verre irisé `M_ItemBox` + cœur lumineux `M_ItemCore`, carapaces vernies avec anneau blanc,
+  banane en V, orbes de bouclier lumineux (`item_mats.py`).
+- À faire : drapeaux/panneaux du décor fixe encore noirs (t0_static), roues qui tournent, personnages animés.

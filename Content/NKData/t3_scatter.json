@@ -1,0 +1,19 @@
+[
+ {
+  "mesh": [
+   "ph_wild_rooibos_bush_0",
+   "ph_wild_rooibos_bush_1",
+   "ph_wild_rooibos_bush_2",
+   "ph_wild_rooibos_bush_3"
+  ],
+  "n": 1050,
+  "near": 200,
+  "far": 4000,
+  "s": [
+   4.0,
+   6.5
+  ],
+  "cull": 12000,
+  "shadow": 1
+ }
+]

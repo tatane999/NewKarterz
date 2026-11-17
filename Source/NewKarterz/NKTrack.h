@@ -51,5 +51,6 @@ private:
 	void BuildEdges();
 	void BuildWater();
 	void BuildDecor(int32 Index);
+	void BuildScatter(int32 Index);
 	UMaterialInterface* Mat(const FString& Name) const;
 };

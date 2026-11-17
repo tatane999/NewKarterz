@@ -2,6 +2,7 @@
 #include "NKTrack.h"
 #include "NKKart.h"
 #include "NKItems.h"
+#include "NKFx.h"
 #include "CanvasItem.h"
 #include "NewKarterz.h"
 #include "Engine/World.h"
@@ -128,6 +129,7 @@ void ANKGameMode::BeginPlay()
 		Karts.Add(K); if (s==PlayerSlot) { Player = K; PlayerInitModel = Ci; }
 	}
 	Items = GetWorld()->SpawnActor<ANKItems>(ANKItems::StaticClass(), FTransform::Identity, P); if (Items) Items->Setup(Track);
+	Fx = GetWorld()->SpawnActor<ANKFx>(ANKFx::StaticClass(), FTransform::Identity, P); if (Fx) Fx->Setup(Track->Deco);
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController()) { PC->Possess(Player); PC->SetViewTarget(Player); PC->bShowMouseCursor=false; PC->SetInputMode(FInputModeGameOnly()); }
 	if (MenuStart > 0)
 	{
@@ -228,7 +230,7 @@ void ANKGameMode::Tick(float Dt)
 	if (State==ENKState::Menu)
 	{
 		TickMenu(Dt, PC);
-		if (State==ENKState::Menu) { for (ANKKart* K : Karts) K->Simulate(Dt, FNKInput()); if (Items) Items->Update(Dt, Karts); }
+		if (State==ENKState::Menu) { for (ANKKart* K : Karts) K->Simulate(Dt, FNKInput()); if (Items) Items->Update(Dt, Karts); if (Fx && PC && PC->PlayerCameraManager) Fx->Update(Dt, Karts, PC->PlayerCameraManager->GetCameraLocation()); }
 		return;
 	}
 	if (bPaused)
@@ -298,6 +300,7 @@ void ANKGameMode::Tick(float Dt)
 		const float RR=320.f; if (L < RR && L > 1.f && FMath::Abs(B->GetActorLocation().Z-A->GetActorLocation().Z) < 150.f)
 		{ const FVector n = d/L*(RR-L)*0.5f; A->SetActorLocation(A->GetActorLocation()-n); B->SetActorLocation(B->GetActorLocation()+n); const float push=(RR-L)/RR*(it==0?1.f:0.f); if (FVector::DotProduct(A->GetActorForwardVector(), d/L)>0.6f) A->Speed*=1.f-0.05f*push; if (FVector::DotProduct(B->GetActorForwardVector(), -d/L)>0.6f) B->Speed*=1.f-0.05f*push; }
 	}
+	if (Fx && PC && PC->PlayerCameraManager) Fx->Update(Dt, Karts, PC->PlayerCameraManager->GetCameraLocation());
 	{ static float Dbg=0; Dbg+=Dt; if (Dbg>2.f){ Dbg=0; const FVector L=Player->GetActorLocation(); UE_LOG(LogNK, Log, TEXT("DBG pos=%s gz=%.0f grounded=%d idx=%d prog=%.0f speed=%.0f gas=%d steer=%.2f laps=%d P=%s"), *L.ToString(), Player->GroundZ, Player->bGrounded, Player->Idx, Player->Prog, Player->Speed, Player->PIn.Gas, Player->PIn.Steer, Player->Laps, *Track->P[Player->Idx].ToString()); } }
 	Ranks();
 	if (Player->bFinished && State!=ENKState::Finished) State = ENKState::Finished;

@@ -1,0 +1,51 @@
+[
+ {
+  "mesh": [
+   "ph_grass_medium_02_0",
+   "ph_grass_medium_02_1",
+   "ph_grass_medium_02_2",
+   "ph_grass_medium_02_3"
+  ],
+  "n": 15600,
+  "near": 60,
+  "far": 2800,
+  "s": [
+   6.0,
+   10.0
+  ],
+  "cull": 11000
+ },
+ {
+  "mesh": [
+   "ph_flower_gazania_0",
+   "ph_flower_gazania_1",
+   "ph_flower_gazania_2",
+   "ph_flower_gazania_3"
+  ],
+  "n": 1800,
+  "near": 80,
+  "far": 2500,
+  "s": [
+   5.0,
+   8.0
+  ],
+  "cull": 9000
+ },
+ {
+  "mesh": [
+   "ph_wild_rooibos_bush_0",
+   "ph_wild_rooibos_bush_1",
+   "ph_wild_rooibos_bush_2",
+   "ph_wild_rooibos_bush_3"
+  ],
+  "n": 750,
+  "near": 300,
+  "far": 4000,
+  "s": [
+   4.0,
+   6.5
+  ],
+  "cull": 14000,
+  "shadow": 1
+ }
+]
