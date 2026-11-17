@@ -39,6 +39,35 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Personnages : `/Game/NK/Chars/cN` (kart + pilote fusionnés), noms dans `NKData/chars.json`.
 - Textes de l'interface et messages à Antoine : en **français**.
 
+## ⚠ PROCHAINE SÉANCE — demandes d'Antoine (17/11, 22 h 15), à traiter AVANT les autres priorités
+0. D'abord : vérifier le .exe empaqueté le 17/11 vers 22 h (son ajouté ; la connexion au PC a coupé pendant le test) :
+   lancer `Build\Windows\NewKarterz.exe -nkauto -nkshots`, lire `%LOCALAPPDATA%\NewKarterz\Saved\nkdbg.txt`
+   (ligne `son[musique=… moteurs=12 …]`) et une capture ; puis faire le commit local en attente (git portable).
+1. **Manette** : Antoine dit que les contrôles à la manette ne marchent pas. Enquêter puis corriger :
+   - vérifier la détection (journal `LogInput`, `XInput`), les correspondances Enhanced Input (`ANKKart::BuildInput`) :
+     les gâchettes (`Gamepad_RightTriggerAxis` / `LeftTriggerAxis`) liées à une action booléenne ne se déclenchent
+     peut-être pas → utiliser `Gamepad_RightTrigger` (bouton) ou une action Axis1D avec seuil ; zone morte du stick
+     (modificateur DeadZone) ; vérifier `SetInputMode(GameOnly)` et que le contexte est bien ajouté au joueur.
+   - manettes non-XInput (PlayStation, Switch, génériques) : activer le plugin **RawInput** (Windows) ou documenter
+     l'usage de Steam Input / DS4Windows.
+   - navigation complète des menus, de la pause et des résultats à la manette (croix + stick + A/B/Start) ;
+     afficher les invites manette (A, B, LB…) quand une manette est utilisée.
+   - Test automatisable : simuler des appuis via `PC->InputKey(FInputKeyEventArgs…)` en mode -nkpad, journaliser
+     dans nkdbg.txt que direction/accélération/saut/objet réagissent.
+2. **Revoir les sauts** : petit saut au dérapage (hop) plus net et plus réactif ; vrais sauts sur les tremplins
+   (raccourcis `type=jump` de trackN.json, bords de rampes) avec temps de vol, caméra qui suit, atterrissage amorti
+   (rebond de suspension) ; **figures en l'air** comme dans la version web (appui saut/dérapage pendant un saut →
+   figure + mini-turbo à l'atterrissage) ; plus de « téléportation » ni de collage brutal au sol (lisser Z).
+3. **Animer les personnages selon la situation** :
+   - séparer le pilote du kart comme pour les roues (`tools\split_wheels.py` → nouveau découpage : matériaux `KZ_*`
+     = kart, `Material_*` = pilote, à vérifier sur quelques persos) → `cN_driver.glb`, pivot au bassin ;
+   - animations procédurales (pas de squelette) : penché dans les virages et dérapages, buste qui bascule à
+     l'accélération/freinage, saut = bras/corps qui s'élèvent, figure = rotation/vrille du pilote, atterrissage = tassement,
+     touché = tournis (tête qui tourne + étoiles), turbo = recul, **dépassement** = le pilote se retourne vers le kart
+     dépassé, se fait dépasser = secoue la tête, objet lancé = geste, arrivée = célébration selon le rang
+     (bras levés / saut de joie / tête baissée), menu = petit balancement d'attente.
+   - Vérifier en captures (caméra de côté) et dans le .exe ; documenter ici.
+
 ## Pistes d'amélioration (par priorité)
 1. Menus et objets : faits (v1). À enrichir : vrais modèles d'objets (boîte « ? » translucide, carapaces, banane),
    sons, effets d'impact, IA qui évite les bananes ; menus plus beaux (UMG/Slate, polices, vignettes des circuits),
