@@ -248,14 +248,20 @@ void ANKTrack::BuildDecor(int32 Index)
 	// éléments répétés (arbres, rochers, herbes...) en instances
 	FString Json; if (!FFileHelper::LoadFileToString(Json, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_inst.json"), Index)))) return;
 	TArray<TSharedPtr<FJsonValue>> Arr; TSharedRef<TJsonReader<>> Rd = TJsonReaderFactory<>::Create(Json); if (!FJsonSerializer::Deserialize(Rd, Arr)) return;
+	// remplacements par des modèles photoscannés (Poly Haven, CC0) : NKData/tN_repl.json = {"i1":{"mesh":"ph_fir","k":0.75}}
+	TSharedPtr<FJsonObject> Repl; { FString RJ; if (FFileHelper::LoadFileToString(RJ, *(FPaths::ProjectContentDir()/FString::Printf(TEXT("NKData/t%d_repl.json"), Index)))) { TSharedRef<TJsonReader<>> R2 = TJsonReaderFactory<>::Create(RJ); FJsonSerializer::Deserialize(R2, Repl); } }
 	int32 Total=0;
 	for (const TSharedPtr<FJsonValue>& V : Arr)
 	{
 		const TSharedPtr<FJsonObject> O = V->AsObject(); const FString Id = O->GetStringField(TEXT("id"));
-		UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Decor/t%d_%s.t%d_%s"), Index, *Id, Index, *Id)); if (!SM) continue;
+		UStaticMesh* SM = nullptr; float K = 1.f;
+		if (Repl.IsValid() && Repl->HasField(Id)) { const TSharedPtr<FJsonObject> E = Repl->GetObjectField(Id); const FString MN = E->GetStringField(TEXT("mesh")); K = E->GetNumberField(TEXT("k"));
+			SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/PH/%s.%s"), *MN, *MN)); }
+		if (!SM) { K = 1.f; SM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Decor/t%d_%s.t%d_%s"), Index, *Id, Index, *Id)); }
+		if (!SM) continue;
 		UHierarchicalInstancedStaticMeshComponent* HC = NewObject<UHierarchicalInstancedStaticMeshComponent>(this); HC->SetStaticMesh(SM); HC->SetupAttachment(RootComponent);
 		HC->SetCollisionEnabled(ECollisionEnabled::NoCollision); HC->SetCullDistances(0, 60000); HC->RegisterComponent();
-		TArray<FTransform> Xf; for (const TSharedPtr<FJsonValue>& M : O->GetArrayField(TEXT("M"))) Xf.Add(JSMatrixToUE(M->AsArray()));
+		TArray<FTransform> Xf; for (const TSharedPtr<FJsonValue>& M : O->GetArrayField(TEXT("M"))) { FTransform T = JSMatrixToUE(M->AsArray()); if (K!=1.f) T.SetScale3D(T.GetScale3D()*K); Xf.Add(T); }
 		HC->AddInstances(Xf, false, true); Total += Xf.Num(); DecorComps.Add(HC);
 	}
 	UE_LOG(LogNK, Log, TEXT("Décor : %d types, %d instances"), Arr.Num(), Total);
