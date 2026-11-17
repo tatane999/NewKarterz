@@ -23,6 +23,8 @@ public:
 	FNKInput ComputeAI(float Dt);
 	void Respawn();
 	void SetModel(int32 KartModel);
+	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Wheels;
+	TArray<bool> WheelFront; TArray<float> WheelR; float WheelSpin=0;
 	int32 Model=0;
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;

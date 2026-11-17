@@ -44,7 +44,7 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
    sons, effets d'impact, IA qui évite les bananes ; menus plus beaux (UMG/Slate, polices, vignettes des circuits),
    options (nombre de tours, difficulté, nombre de karts), écran de chargement.
 2. Remplacer le décor low-poly par des modèles photoscannés CC0 (Poly Haven / ambientCG) en Nanite ; couleurs par instance.
-3. Personnages animés (squelettes Melannie/Rocco), roues qui tournent, effets Niagara (poussière, étincelles, turbo).
+3. Personnages animés (squelettes Melannie/Rocco) ; roues qui tournent : faites (25/27 persos) ; effets : faits (ANKFx).
 4. Sons et musique (MetaSounds), commentateur.
 5. Modes (Grand Prix, contre-la-montre, élimination, 2 joueurs) comme dans la version web.
 
@@ -111,3 +111,14 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
 - Forêt en lumière de fin d'après-midi (soleil −17°, teinte dorée, brouillard volumétrique chaud).
 - À faire : quelques éléments du décor fixe très sombres (barrières, drapeaux à contre-jour), boîtes « ? » de la version web
   qui doublent les nôtres sur certains circuits, roues qui tournent, personnages animés, buissons tropicaux sur la neige.
+
+## Roues (17/11 nuit)
+- PC `tools\split_wheels.py` (Blender -b, args `-- c0,c1,...`) : sur `ue_import\joined\cN.glb`, regroupe les faces de
+  matériau *tire* par proximité (KD-tree, 12 cm), fusionne les anneaux concentriques, garde les groupes ronds (3 à 6),
+  ajoute toutes les faces dans le cylindre de chaque roue (jantes, moyeux), exporte `ue_import\chars2\cN_body.glb` +
+  `cN_wK.glb` (pivot au centre) et `wheels.json` (f = avant, p = position UE cm dans le repère du modèle, r = rayon).
+  Repère : Blender (x,y,z) → UE (x·100, −y·100, z·100) ; avant du modèle = +Y UE (Body tourné de −90°).
+- Import : `Scripts/import_chars2.py` → `/Game/NK/Chars2/` puis `fix_usage.py` + `fix_sheen.py`.
+- `NKData/wheels.json` lu par `ANKKart::SetModel` (repli sur l'ancien modèle fusionné). Rotation : Roll = −spin/r,
+  braquage avant Yaw = −SteerVis·24°.
+- Sans roues séparées : c9 et c22 (pas de pneus).

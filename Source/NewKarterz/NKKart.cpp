@@ -13,6 +13,11 @@
 #include "InputModifiers.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 ANKKart::ANKKart()
 {
@@ -50,9 +55,38 @@ void ANKKart::Init(ANKTrack* InTrack, int32 Slot, bool bPlayer, int32 KartModel,
 	if (!bIsPlayer){ Cam->Deactivate(); Arm->Deactivate(); }
 }
 
+// roues séparées : NKData/wheels.json = {"c0":[{"f":true,"p":[x,y,z],"r":42},...]} (cm, repère du modèle)
+static TSharedPtr<FJsonObject> NKWheelData()
+{
+	static TSharedPtr<FJsonObject> W; static bool bLoaded=false;
+	if (!bLoaded) { bLoaded=true; FString J; if (FFileHelper::LoadFileToString(J, *(FPaths::ProjectContentDir()/TEXT("NKData/wheels.json")))) { TSharedRef<TJsonReader<>> R=TJsonReaderFactory<>::Create(J); FJsonSerializer::Deserialize(R, W); } }
+	return W;
+}
+
 void ANKKart::SetModel(int32 KartModel)
 {
 	Model = KartModel;
+	for (UStaticMeshComponent* Wc : Wheels) if (Wc) Wc->DestroyComponent();
+	Wheels.Reset(); WheelFront.Reset(); WheelR.Reset();
+	const FString Key = FString::Printf(TEXT("c%d"), KartModel);
+	const TSharedPtr<FJsonObject> WD = NKWheelData();
+	const TArray<TSharedPtr<FJsonValue>>* WA = nullptr;
+	UStaticMesh* BodyM = (WD.IsValid() && WD->TryGetArrayField(Key, WA)) ? LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Chars2/%s_body.%s_body"), *Key, *Key)) : nullptr;
+	if (BodyM && WA)
+	{
+		Body->SetStaticMesh(BodyM); Body->SetRelativeRotation(FRotator(0,-90,0)); Body->SetRelativeScale3D(FVector(1.f));
+		for (int32 i=0;i<WA->Num();i++)
+		{
+			UStaticMesh* WM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Chars2/%s_w%d.%s_w%d"), *Key, i, *Key, i));
+			if (!WM) continue;
+			const TSharedPtr<FJsonObject> E = (*WA)[i]->AsObject(); const TArray<TSharedPtr<FJsonValue>>& Pp = E->GetArrayField(TEXT("p"));
+			UStaticMeshComponent* Wc = NewObject<UStaticMeshComponent>(this);
+			Wc->SetStaticMesh(WM); Wc->SetupAttachment(Body); Wc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Wc->SetRelativeLocation(FVector(Pp[0]->AsNumber(), Pp[1]->AsNumber(), Pp[2]->AsNumber())); Wc->RegisterComponent();
+			Wheels.Add(Wc); WheelFront.Add(E->GetBoolField(TEXT("f"))); WheelR.Add(FMath::Max(10.f, (float)E->GetNumberField(TEXT("r"))));
+		}
+		return;
+	}
 	UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Chars/c%d.c%d"), KartModel, KartModel));
 	if (!M) M = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/NK/Karts/k%d.k%d"), KartModel%13, KartModel%13));
 	if (!M) M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -232,6 +266,14 @@ void ANKKart::Simulate(float Dt, const FNKInput& In0)
 	Visual->SetRelativeRotation(FMath::RInterpTo(Visual->GetRelativeRotation(), FRotator(Pitch, Yaw + (SpinT>0?SpinT*800.f:0.f), Roll), Dt, 10.f));
 	Visual->SetRelativeScale3D(FVector(1.f, 1.f, 1.f - FMath::Sin(HopSq*PI)*0.12f));
 	Flame->SetVisibility(BoostT>0);
+	// roues : rotation selon la vitesse (rayon de chaque roue), braquage des roues avant
+	if (Wheels.Num())
+	{
+		WheelSpin = FMath::Fmod(WheelSpin + Speed*Dt, 1.0e6f);
+		const float SteerYaw = -SteerVis*24.f;
+		for (int32 i=0;i<Wheels.Num();i++) if (Wheels[i])
+			Wheels[i]->SetRelativeRotation(FRotator(0, WheelFront[i] ? SteerYaw : 0.f, -FMath::RadiansToDegrees(WheelSpin / WheelR[i])));
+	}
 	if (bIsPlayer && Cam)
 	{
 		Cam->SetFieldOfView(FMath::FInterpTo(Cam->FieldOfView, 78.f + SpdF*10.f + (BoostT>0?10.f:0.f), Dt, 4.f));
