@@ -102,4 +102,7 @@ L'ancienne version web (Three.js) sert de référence de gameplay ; elle n'est p
   anneau de poussière à l'atterrissage, étoiles quand un kart est touché. Matériaux `M_FxAdd` / `M_FxDust` (`fx_mats.py`).
 - Objets : boîte en verre irisé `M_ItemBox` + cœur lumineux `M_ItemCore`, carapaces vernies avec anneau blanc,
   banane en V, orbes de bouclier lumineux (`item_mats.py`).
-- À faire : drapeaux/panneaux du décor fixe encore noirs (t0_static), roues qui tournent, personnages animés.
+- Ambiances (ANKFx, autour de la caméra) : neige (Pic Givré, ~2200 flocons), lucioles clignotantes (Forêt), braises (Volcan).
+- Forêt en lumière de fin d'après-midi (soleil −17°, teinte dorée, brouillard volumétrique chaud).
+- À faire : quelques éléments du décor fixe très sombres (barrières, drapeaux à contre-jour), boîtes « ? » de la version web
+  qui doublent les nôtres sur certains circuits, roues qui tournent, personnages animés, buissons tropicaux sur la neige.

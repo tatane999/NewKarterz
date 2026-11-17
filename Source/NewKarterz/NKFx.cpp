@@ -24,6 +24,7 @@ static UInstancedStaticMeshComponent* MkFx(AActor* O, USceneComponent* R, const 
 
 void ANKFx::Setup(const FString& Deco)
 {
+	Biome = Deco;
 	IAdd  = MkFx(this, Root, TEXT("FxAdd"),  TEXT("/Game/NK/Mat/M_FxAdd.M_FxAdd"));
 	IDust = MkFx(this, Root, TEXT("FxDust"), TEXT("/Game/NK/Mat/M_FxDust.M_FxDust"));
 	DustCol = Deco==TEXT("palm") ? FLinearColor(0.78f,0.68f,0.5f) : Deco==TEXT("pine") ? FLinearColor(0.42f,0.36f,0.26f)
@@ -90,12 +91,29 @@ void ANKFx::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts, const FVe
 		// touché : étoiles
 		if (K->HitFlash > 1.5f) Burst(Pos + U*120.f, FLinearColor(1.f,0.85f,0.2f), 6, 700.f, 14.f);
 	}
+	// ambiance du circuit autour de la caméra : neige, lucioles, braises
+	{
+		const int32 Want = Biome==TEXT("snow") ? 2200 : Biome==TEXT("pine") ? 260 : Biome==TEXT("rock") ? 320 : 0;
+		const float Rad = Biome==TEXT("snow") ? 2600.f : 3800.f;
+		int32 Spawn = FMath::Min(Want - NumAmb, 90);
+		for (int32 i=0;i<Spawn;i++)
+		{
+			FNKPart Q; Q.bAmb=true; Q.Phase=FMath::FRand()*6.28f;
+			const FVector Off(FMath::FRandRange(-Rad,Rad), FMath::FRandRange(-Rad,Rad), 0);
+			if (Biome==TEXT("snow")) { Q.Kind=1; Q.Pos=CamPos+Off+FVector(0,0,FMath::FRandRange(-200.f,1500.f)); Q.Vel=FVector(120.f,60.f,-170.f); Q.Col=FLinearColor(1,1,1); Q.Max=Q.Life=FMath::FRandRange(5.f,9.f); Q.S0=Q.S1=FMath::FRandRange(8.f,15.f); Q.Drag=0; }
+			else if (Biome==TEXT("pine")) { Q.Kind=0; Q.Pos=CamPos+Off+FVector(0,0,FMath::FRandRange(-500.f,300.f)); Q.Vel=FMath::VRand()*60.f; Q.Col=FLinearColor(0.75f,1.f,0.25f)*0.9f; Q.Max=Q.Life=FMath::FRandRange(3.f,6.f); Q.S0=Q.S1=12.f; Q.Drag=0; }
+			else { Q.Kind=0; Q.Pos=CamPos+Off+FVector(0,0,FMath::FRandRange(-600.f,400.f)); Q.Vel=FVector(FMath::FRandRange(-40.f,40.f),FMath::FRandRange(-40.f,40.f),FMath::FRandRange(90.f,220.f)); Q.Col=FLinearColor(1.f,0.35f,0.05f)*0.6f; Q.Max=Q.Life=FMath::FRandRange(2.5f,5.f); Q.S0=6.f; Q.S1=2.f; Q.Drag=0; }
+			Add(Q);
+		}
+	}
 	// simulation + rendu
-	TArray<FTransform> XA, XD; TArray<float> CA, CD;
+	TArray<FTransform> XA, XD; TArray<float> CA, CD; NumAmb = 0; for (const FNKPart& Q : P) if (Q.bAmb) NumAmb++;
 	for (int32 i=P.Num()-1;i>=0;i--)
 	{
 		FNKPart& Q = P[i]; Q.Life -= Dt;
+		if (Q.bAmb && FVector::DistSquared2D(Q.Pos, CamPos) > 5000.f*5000.f) Q.Life = 0;
 		if (Q.Life <= 0) { P.RemoveAtSwap(i); continue; }
+		if (Q.bAmb && Q.Kind==0 && Biome==TEXT("pine")) Q.Vel += FVector(FMath::Sin(Acc*1.3f+Q.Phase), FMath::Cos(Acc*1.1f+Q.Phase), FMath::Sin(Acc*0.9f+Q.Phase*2.f)*0.5f)*60.f*Dt;
 		Q.Vel *= FMath::Max(0.f, 1.f - Q.Drag*Dt); Q.Vel.Z -= Q.Grav*Dt; Q.Pos += Q.Vel*Dt;
 		const float T = 1.f - Q.Life/Q.Max; const float S = FMath::Lerp(Q.S0, Q.S1, T) / 50.f; // sphère de base = 100 cm
 		if (Q.Kind == 0)
@@ -103,12 +121,13 @@ void ANKFx::Update(float Dt, const TArray<TObjectPtr<ANKKart>>& Karts, const FVe
 			// étincelle étirée dans le sens de la vitesse
 			const float L = FMath::Clamp(Q.Vel.Size()*0.0009f, 1.f, 4.f);
 			XA.Add(FTransform(Q.Vel.Rotation(), Q.Pos, FVector(S*L, S, S)));
-			CA.Append({Q.Col.R, Q.Col.G, Q.Col.B, 1.f - T*T});
+			const float A = Q.bAmb ? FMath::Min(1.f, FMath::Min(T*5.f, (1.f-T)*4.f)) * (Biome==TEXT("pine") ? 0.5f+0.5f*FMath::Sin(Acc*3.f+Q.Phase) : 1.f) : 1.f - T*T;
+			CA.Append({Q.Col.R, Q.Col.G, Q.Col.B, A});
 		}
 		else
 		{
 			XD.Add(FTransform(FRotator::ZeroRotator, Q.Pos, FVector(S)));
-			CD.Append({Q.Col.R, Q.Col.G, Q.Col.B, 0.42f*(1.f - T)*FMath::Min(1.f, T*6.f)});
+			CD.Append({Q.Col.R, Q.Col.G, Q.Col.B, Q.bAmb ? 0.9f*FMath::Min(1.f, FMath::Min(T*5.f, (1.f-T)*5.f)) : 0.42f*(1.f - T)*FMath::Min(1.f, T*6.f)});
 		}
 	}
 	auto Push = [](UInstancedStaticMeshComponent* I, const TArray<FTransform>& X, const TArray<float>& C)

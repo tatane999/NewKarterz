@@ -58,10 +58,11 @@ void ANKGameMode::SpawnEnvironment()
 	UWorld* W = GetWorld(); FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	const FString& D = Track->Deco;
 	// soleil
-	ADirectionalLight* Sun = W->SpawnActor<ADirectionalLight>(FVector(0,0,10000), D==TEXT("rock")?FRotator(-22,160,0):D==TEXT("snow")?FRotator(-28,145,0):FRotator(-42,150,0), P);
+	ADirectionalLight* Sun = W->SpawnActor<ADirectionalLight>(FVector(0,0,10000), D==TEXT("rock")?FRotator(-22,160,0):D==TEXT("snow")?FRotator(-28,145,0):D==TEXT("pine")?FRotator(-17,138,0):FRotator(-42,150,0), P);
 	if (Sun){ UDirectionalLightComponent* L = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()); L->SetMobility(EComponentMobility::Movable); L->SetIntensity(D==TEXT("rock")?6.f:10.f); L->SetAtmosphereSunLight(true); L->SetDynamicShadowDistanceMovableLight(25000.f);
 			L->LightSourceAngle = 1.2f; L->bEnableLightShaftBloom = true; L->BloomScale = 0.12f; L->BloomThreshold = 4.f; L->SetBloomTint(FColor(255,220,170));
-		L->SetLightColor(D==TEXT("rock")?FLinearColor(1.f,0.62f,0.45f):FLinearColor(1.f,0.96f,0.9f)); }
+		L->SetLightColor(D==TEXT("rock")?FLinearColor(1.f,0.62f,0.45f):D==TEXT("pine")?FLinearColor(1.f,0.74f,0.48f):FLinearColor(1.f,0.96f,0.9f));
+			if (D==TEXT("pine")) { L->SetIntensity(8.f); L->SetVolumetricScatteringIntensity(2.5f); } }
 	// atmosphère, ciel, nuages, brouillard
 	AActor* Sky = W->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, P);
 	USceneComponent* SR = NewObject<USceneComponent>(Sky, TEXT("R")); Sky->SetRootComponent(SR); SR->RegisterComponent();
@@ -71,7 +72,8 @@ void ANKGameMode::SpawnEnvironment()
 	if (UMaterialInterface* CM = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst.m_SimpleVolumetricCloud_Inst"))) Cl->SetMaterial(CM);
 	AExponentialHeightFog* Fog = W->SpawnActor<AExponentialHeightFog>(FVector(0,0,-500), FRotator::ZeroRotator, P);
 	if (Fog){ UExponentialHeightFogComponent* F = Fog->GetComponent(); F->SetFogDensity(D==TEXT("snow")?0.035f:D==TEXT("rock")?0.05f:0.012f); F->SetFogHeightFalloff(0.08f); F->SetVolumetricFog(true);
-		F->SetVolumetricFogScatteringDistribution(0.6f); if (D==TEXT("rock")) F->SetFogInscatteringColor(FLinearColor(0.35f,0.08f,0.03f)); }
+		F->SetVolumetricFogScatteringDistribution(0.6f); if (D==TEXT("rock")) F->SetFogInscatteringColor(FLinearColor(0.35f,0.08f,0.03f));
+			if (D==TEXT("pine")) { F->SetFogDensity(0.015f); F->SetFogInscatteringColor(FLinearColor(0.55f,0.42f,0.3f)); F->SetVolumetricFogExtinctionScale(1.4f); } }
 	ASkyLight* SL = W->SpawnActor<ASkyLight>(FVector::ZeroVector, FRotator::ZeroRotator, P);
 	if (SL){ USkyLightComponent* C = SL->GetLightComponent(); C->SetMobility(EComponentMobility::Movable); C->bRealTimeCapture = true; C->SetIntensity(2.1f); C->RecaptureSky(); }
 	APostProcessVolume* PPV = W->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator, P);
